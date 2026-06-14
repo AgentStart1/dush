@@ -37,6 +37,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -91,7 +94,7 @@ fun AndroidAgentApp(initialThreadId: String? = null, bubbleMode: Boolean = false
     }
 
     MaterialTheme {
-        Surface(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             val routeEntryProvider = entryProvider<NavKey> {
                 entry<AppRoute.ChatList> { ChatListScreen(navigate) }
                 entry<AppRoute.ChatThread> { key -> ChatThreadScreen(key.threadId) }
@@ -111,6 +114,7 @@ fun AndroidAgentApp(initialThreadId: String? = null, bubbleMode: Boolean = false
                                     onClick = { navigate(route) },
                                     icon = { Text(route.shortLabel()) },
                                     label = { Text(route.label()) },
+                                    modifier = Modifier.testTag(route.testTag()),
                                 )
                             }
                         }
@@ -143,6 +147,14 @@ private fun AppRoute.shortLabel(): String = when (this) {
     AppRoute.Models -> "M"
     AppRoute.Agents -> "A"
     AppRoute.Settings -> "S"
+    else -> ""
+}
+
+private fun AppRoute.testTag(): String = when (this) {
+    AppRoute.ChatList -> "nav-chat"
+    AppRoute.Models -> "nav-models"
+    AppRoute.Agents -> "nav-agents"
+    AppRoute.Settings -> "nav-settings"
     else -> ""
 }
 
@@ -245,10 +257,13 @@ private fun ModelsScreen(navigate: (AppRoute) -> Unit) {
         uri?.let { scope.launch { AppGraph.modelRepository.importModel(it) } }
     }
     Scaffold(topBar = { TopAppBar(title = { Text("Models") }) }) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(padding).padding(16.dp).testTag("models-screen"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Import") }
-                OutlinedButton(onClick = { scope.launch { AppGraph.modelRepository.downloadCatalogModel(AppGraph.modelRepository.catalog.first()) } }) {
+                Button(onClick = { picker.launch(arrayOf("*/*")) }, modifier = Modifier.testTag("models-import")) { Text("Import") }
+                OutlinedButton(
+                    onClick = { scope.launch { AppGraph.modelRepository.downloadCatalogModel(AppGraph.modelRepository.catalog.first()) } },
+                    modifier = Modifier.testTag("models-download-gemma"),
+                ) {
                     Text("Download Gemma")
                 }
             }

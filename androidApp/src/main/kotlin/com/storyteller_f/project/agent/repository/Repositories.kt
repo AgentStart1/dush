@@ -35,8 +35,8 @@ class ModelRepository(
         ModelCatalogItem(
             id = "gemma-4-e2b-it-litert",
             name = "Gemma 4 E2B IT LiteRT-LM",
-            url = "https://huggingface.co/google/gemma-3n-E2B-it-litert-lm-preview/resolve/main/gemma-3n-E2B-it-int4.litertlm",
-            fileName = "gemma-3n-E2B-it-int4.litertlm",
+            url = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+            fileName = "gemma-4-E2B-it.litertlm",
         )
     )
 
