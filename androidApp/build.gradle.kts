@@ -31,6 +31,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.runtime)
     implementation(libs.compose.ui)
+    implementation(libs.kermit)
     implementation(libs.koog.agents)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.litertlm.android)

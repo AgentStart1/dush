@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInfo
 import org.openqa.selenium.By
 import org.openqa.selenium.WebElement
 import org.openqa.selenium.support.ui.ExpectedConditions
@@ -17,9 +18,12 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import java.util.Base64
 import kotlin.io.path.name
 
 class ImportGemmaModelTest {
+    private val appLogPath = "files/logs/app.log"
+    private var isScreenRecording = false
     private lateinit var driver: AndroidDriver
     private lateinit var wait: WebDriverWait
 
@@ -43,11 +47,15 @@ class ImportGemmaModelTest {
         appPath()?.let(options::setApp)
 
         driver = AndroidDriver(URI(serverUrl).toURL(), options)
+        driver.startRecordingScreen()
+        isScreenRecording = true
         wait = WebDriverWait(driver, Duration.ofSeconds(30))
     }
 
     @AfterEach
-    fun tearDown() {
+    fun tearDown(testInfo: TestInfo) {
+        saveScreenRecording(testInfo)
+        pullAppLog(testInfo)
         if (::driver.isInitialized) {
             driver.quit()
         }
@@ -69,10 +77,18 @@ class ImportGemmaModelTest {
     private fun selectModelFromDocumentPicker(fileName: String) {
         runCatching {
             wait.until(ExpectedConditions.elementToBeClickable(AppiumBy.accessibilityId("Show roots"))).click()
-            wait.until(ExpectedConditions.elementToBeClickable(AppiumBy.androidUIAutomator("""new UiSelector().textContains("Downloads")"""))).click()
+            wait.until(
+                ExpectedConditions.elementToBeClickable(
+                    AppiumBy.androidUIAutomator("""new UiSelector().resourceId("android:id/title").text("Downloads")"""),
+                ),
+            ).click()
         }.recoverCatching {
-            wait.until(ExpectedConditions.elementToBeClickable(AppiumBy.androidUIAutomator("""new UiSelector().textContains("Downloads")"""))).click()
-        }
+            wait.until(
+                ExpectedConditions.elementToBeClickable(
+                    AppiumBy.androidUIAutomator("""new UiSelector().resourceId("android:id/title").text("Downloads")"""),
+                ),
+            ).click()
+        }.getOrThrow()
 
         wait.until(
             ExpectedConditions.elementToBeClickable(
@@ -113,14 +129,65 @@ class ImportGemmaModelTest {
         adb("push", modelPath.toString(), "/sdcard/Download/${modelPath.name}")
     }
 
-    private fun adb(vararg args: String) {
-        val command = mutableListOf(adbPath())
-        System.getenv("ANDROID_UDID")?.let {
-            command += "-s"
-            command += it
-        }
-        command += args
+    private fun saveScreenRecording(testInfo: TestInfo) {
+        val outputDir = Path.of(System.getProperty("project.root.dir"), "build", "appium-videos")
+        Files.createDirectories(outputDir)
 
+        val videoPath = outputDir.resolve("${testFileStem(testInfo)}.mp4")
+        val errorPath = outputDir.resolve("${testFileStem(testInfo)}.record-error.txt")
+        Files.deleteIfExists(videoPath)
+        Files.deleteIfExists(errorPath)
+
+        runCatching {
+            check(::driver.isInitialized && isScreenRecording) { "Appium screen recording was not started" }
+            val content = driver.stopRecordingScreen()
+            val decoded = Base64.getDecoder().decode(content)
+            Files.write(videoPath, decoded)
+        }.onFailure { error ->
+            Files.writeString(errorPath, "Failed to save Appium screen recording: ${error.message}\n")
+        }.also {
+            isScreenRecording = false
+        }
+    }
+
+    private fun pullAppLog(testInfo: TestInfo) {
+        val outputDir = Path.of(System.getProperty("project.root.dir"), "build", "appium-logs")
+        Files.createDirectories(outputDir)
+
+        val logName = testFileStem(testInfo)
+        val outputPath = outputDir.resolve("$logName.log")
+        val errorPath = outputDir.resolve("$logName.pull-error.txt")
+        Files.deleteIfExists(outputPath)
+        Files.deleteIfExists(errorPath)
+
+        runCatching {
+            val appPackage = appPackage()
+            val log = adbOutput("shell", "run-as", appPackage, "cat", "/data/data/$appPackage/$appLogPath")
+            check(!log.startsWith("cat:") && !log.contains("No such file or directory")) { log }
+            log
+        }.onSuccess { log ->
+            Files.writeString(outputPath, log)
+        }.onFailure { error ->
+            Files.writeString(
+                errorPath,
+                "Failed to pull $appLogPath from ${appPackage()}: ${error.message}\n",
+            )
+        }
+    }
+
+    private fun testFileStem(testInfo: TestInfo): String {
+        return testInfo.displayName
+            .replace(Regex("[^A-Za-z0-9._-]+"), "_")
+            .trim('_')
+            .ifBlank { "appium-test" }
+    }
+
+    private fun adb(vararg args: String) {
+        adbOutput(*args)
+    }
+
+    private fun adbOutput(vararg args: String): String {
+        val command = adbCommand(*args)
         val process = ProcessBuilder(command)
             .redirectErrorStream(true)
             .start()
@@ -129,6 +196,21 @@ class ImportGemmaModelTest {
         check(exitCode == 0) {
             "adb command failed with exit code $exitCode: ${command.joinToString(" ")}\n$output"
         }
+        return output
+    }
+
+    private fun adbCommand(vararg args: String): List<String> {
+        val command = mutableListOf(adbPath())
+        System.getenv("ANDROID_UDID")?.let {
+            command += "-s"
+            command += it
+        }
+        command += args
+        return command
+    }
+
+    private fun appPackage(): String {
+        return System.getenv("APP_PACKAGE") ?: "com.storyteller_f.project"
     }
 
     private fun adbPath(): String {

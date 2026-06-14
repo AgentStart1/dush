@@ -18,6 +18,7 @@ junit-jupiter = "5.14.4"
 koog = "1.0.0-preview7"
 kotlin = "2.4.0"
 ksp = "2.3.9"
+kermit = "2.1.0"
 kotlin-wrappers = "2026.6.1"
 kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.9.0"
@@ -31,6 +32,7 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }
 appium-java-client = { module = "io.appium:java-client", version.ref = "appium" }
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
 androidx-testExt-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-testExt" }
