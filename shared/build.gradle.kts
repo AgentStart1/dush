@@ -30,7 +30,7 @@ kotlin {
     // }
     
     androidLibrary {
-       namespace = "com.storyteller_f.project.shared"
+       namespace = "com.storyteller_f.dush.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
     
