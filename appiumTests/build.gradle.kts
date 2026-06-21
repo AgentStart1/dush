@@ -15,7 +15,6 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
     maxParallelForks = 1
-    dependsOn(":androidApp:assembleDebug")
+    dependsOn(":androidApp:installDebug")
     systemProperty("project.root.dir", rootProject.projectDir.absolutePath)
-    systemProperty("app.path", rootProject.layout.projectDirectory.file("androidApp/build/outputs/apk/debug/androidApp-debug.apk").asFile.absolutePath)
 }

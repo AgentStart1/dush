@@ -9,16 +9,15 @@ class ChatFlowTest : BaseAppiumTest() {
 
     @Test
     fun createsNewChat() {
-        findByText("New chat").click()
+        findById("new-chat").click()
         assertTrue(waitForText("Chat"), "Should navigate to the chat thread screen")
-        assertTrue(waitForText("Message"), "Message input field should be visible")
-        assertTrue(waitForText("Send"), "Send button should be visible")
+        assertTrue(idExists("send-button"), "Send button should be visible")
     }
 
     @Test
     fun sendsUserMessage() {
-        findByText("New chat").click()
-        waitForText("Message")
+        findById("new-chat").click()
+        assertTrue(idExists("send-button"), "Chat thread should be loaded")
 
         val input = wait.until(
             ExpectedConditions.elementToBeClickable(
@@ -27,7 +26,7 @@ class ChatFlowTest : BaseAppiumTest() {
         )
         input.sendKeys("Hello from Appium")
 
-        findByText("Send").click()
+        findById("send-button").click()
 
         assertTrue(waitForText("Hello from Appium"), "Sent message should appear in the chat")
         assertTrue(waitForText("You"), "User message label should appear")
@@ -35,8 +34,8 @@ class ChatFlowTest : BaseAppiumTest() {
 
     @Test
     fun newChatAppearsInChatList() {
-        findByText("New chat").click()
-        waitForText("Message")
+        findById("new-chat").click()
+        assertTrue(idExists("send-button"), "Chat thread should be loaded")
 
         val input = wait.until(
             ExpectedConditions.elementToBeClickable(
@@ -45,7 +44,7 @@ class ChatFlowTest : BaseAppiumTest() {
         )
         input.sendKeys("Test thread title")
 
-        findByText("Send").click()
+        findById("send-button").click()
         waitForText("Test thread title")
 
         driver.navigate().back()

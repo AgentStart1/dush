@@ -10,7 +10,7 @@ class ModelsScreenTest : BaseAppiumTest() {
         findByIdOrText("nav-models", "Models").click()
         assertTrue(waitForText("Models"), "Models screen title should appear")
         assertTrue(waitForText("Import"), "Import button should be visible")
-        assertTrue(waitForText("Download Gemma"), "Download Gemma button should be visible")
+        assertTrue(waitForText("Gemma"), "Gemma download button should be visible")
     }
 
     @Test

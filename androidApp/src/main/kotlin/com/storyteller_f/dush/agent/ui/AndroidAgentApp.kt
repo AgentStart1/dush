@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,7 +39,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -54,6 +52,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,6 +84,23 @@ import com.storyteller_f.dush.agent.data.ModelStatus
 import com.storyteller_f.dush.agent.worker.ReplyWorker
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+
+private val ShapeSmall = RoundedCornerShape(16.dp)
+private val ShapeMedium = RoundedCornerShape(20.dp)
+private val ShapeInput = RoundedCornerShape(24.dp)
+private val UserBubbleShape = RoundedCornerShape(
+    topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 4.dp,
+)
+private val AgentBubbleShape = RoundedCornerShape(
+    topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 20.dp,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun dushTopAppBarColors(): TopAppBarColors = TopAppBarDefaults.topAppBarColors(
+    containerColor = MaterialTheme.colorScheme.surface,
+    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+)
 
 @Serializable
 sealed interface AppRoute : NavKey {
@@ -204,10 +220,7 @@ private fun ChatListScreen(navigate: (AppRoute) -> Unit) {
             LargeTopAppBar(
                 title = { Text("Chats") },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
+                colors = dushTopAppBarColors(),
             )
         },
         floatingActionButton = {
@@ -219,6 +232,7 @@ private fun ChatListScreen(navigate: (AppRoute) -> Unit) {
                         navigate(AppRoute.ChatThread(threadId))
                     }
                 },
+                modifier = Modifier.testTag("new-chat"),
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
@@ -259,17 +273,20 @@ private fun ChatThreadScreen(threadId: String) {
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    LaunchedEffect(messages.lastOrNull()?.id, messages.lastOrNull()?.content) {
+        if (messages.isNotEmpty()) {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            if (lastVisible >= messages.size - 2) {
+                listState.animateScrollToItem(messages.size - 1)
+            }
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Chat") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = dushTopAppBarColors(),
             )
         },
     ) { padding ->
@@ -296,7 +313,7 @@ private fun ChatThreadScreen(threadId: String) {
                         onValueChange = { input = it },
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Type a message...") },
-                        shape = RoundedCornerShape(24.dp),
+                        shape = ShapeInput,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
                             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -317,7 +334,7 @@ private fun ChatThreadScreen(threadId: String) {
                                 }
                             }
                         },
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(48.dp).testTag("send-button"),
                         shape = CircleShape,
                         contentPadding = PaddingValues(0.dp),
                     ) {
@@ -342,20 +359,14 @@ internal fun MessageRow(message: ChatMessageEntity) {
     } else {
         MaterialTheme.colorScheme.onSurface
     }
-    val bubbleShape = RoundedCornerShape(
-        topStart = 20.dp,
-        topEnd = 20.dp,
-        bottomStart = if (isUser) 20.dp else 4.dp,
-        bottomEnd = if (isUser) 4.dp else 20.dp,
-    )
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
-        if (isUser) Spacer(Modifier.width(48.dp))
+        if (isUser) Spacer(Modifier.weight(0.2f))
         Column(
-            modifier = Modifier.widthIn(max = 320.dp),
+            modifier = Modifier.weight(0.8f, fill = false),
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
         ) {
             Text(
@@ -366,7 +377,7 @@ internal fun MessageRow(message: ChatMessageEntity) {
             )
             Surface(
                 color = bubbleColor,
-                shape = bubbleShape,
+                shape = if (isUser) UserBubbleShape else AgentBubbleShape,
                 tonalElevation = if (isUser) 0.dp else 1.dp,
             ) {
                 Text(
@@ -377,7 +388,7 @@ internal fun MessageRow(message: ChatMessageEntity) {
                 )
             }
         }
-        if (!isUser) Spacer(Modifier.width(48.dp))
+        if (!isUser) Spacer(Modifier.weight(0.2f))
     }
 }
 
@@ -396,10 +407,7 @@ private fun ModelsScreen(navigate: (AppRoute) -> Unit) {
             LargeTopAppBar(
                 title = { Text("Models") },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
+                colors = dushTopAppBarColors(),
             )
         },
     ) { padding ->
@@ -464,9 +472,7 @@ private fun ModelDetailScreen(modelId: String) {
         topBar = {
             TopAppBar(
                 title = { Text("Model detail") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = dushTopAppBarColors(),
             )
         },
     ) { padding ->
@@ -485,7 +491,7 @@ private fun ModelDetailScreen(modelId: String) {
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     ),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = ShapeMedium,
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(model.name, style = MaterialTheme.typography.headlineSmall)
@@ -535,15 +541,13 @@ private fun AgentsScreen(navigate: (AppRoute) -> Unit) {
             LargeTopAppBar(
                 title = { Text("Agents") },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
+                colors = dushTopAppBarColors(),
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navigate(AppRoute.AgentEditor(null)) },
+                modifier = Modifier.testTag("new-agent"),
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
@@ -574,7 +578,7 @@ private fun AgentsScreen(navigate: (AppRoute) -> Unit) {
                             } else {
                                 OutlinedButton(
                                     onClick = { scope.launch { AppGraph.agentRepository.selectDefault(agent.id) } },
-                                    shape = RoundedCornerShape(20.dp),
+                                    shape = ShapeMedium,
                                 ) { Text("Use") }
                             }
                         },
@@ -601,9 +605,7 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text(if (agentId == null) "New agent" else "Edit agent") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = dushTopAppBarColors(),
             )
         },
     ) { padding ->
@@ -617,7 +619,7 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
                     name, { name = it },
                     label = { Text("Name") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ShapeSmall,
                     singleLine = true,
                 )
             }
@@ -626,14 +628,14 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
                     prompt, { prompt = it },
                     label = { Text("System prompt") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ShapeSmall,
                     minLines = 4,
                 )
             }
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = ShapeMedium,
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
@@ -667,14 +669,14 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
                     { maxTokens = it.filter(Char::isDigit) },
                     label = { Text("Max tokens") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ShapeSmall,
                     singleLine = true,
                 )
             }
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = ShapeMedium,
                 ) {
                     Row(
                         Modifier.fillMaxWidth().padding(16.dp),
@@ -706,7 +708,7 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ShapeSmall,
                 ) { Text("Save", style = MaterialTheme.typography.titleMedium) }
             }
         }
@@ -717,14 +719,14 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
 @Composable
 private fun SettingsScreen() {
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
                 title = { Text("Settings") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
+                scrollBehavior = scrollBehavior,
+                colors = dushTopAppBarColors(),
             )
         },
     ) { padding ->
@@ -757,7 +759,7 @@ private fun SettingsScreen() {
 private fun SettingsSection(title: String, content: @Composable () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        shape = RoundedCornerShape(20.dp),
+        shape = ShapeMedium,
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
@@ -777,7 +779,7 @@ internal fun ListCard(
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = ShapeSmall,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Row(
@@ -802,7 +804,7 @@ internal fun ListCard(
 private fun StatusChip(label: String) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(20.dp),
+        shape = ShapeMedium,
     ) {
         Text(
             label,

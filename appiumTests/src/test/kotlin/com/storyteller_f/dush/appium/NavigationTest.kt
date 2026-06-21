@@ -8,7 +8,7 @@ class NavigationTest : BaseAppiumTest() {
     @Test
     fun launchesToChatScreen() {
         assertTrue(waitForText("Chats"), "App should launch to the Chat list screen")
-        assertTrue(waitForText("New chat"), "Chat screen should show the New chat button")
+        assertTrue(idExists("new-chat"), "Chat screen should show the New chat FAB")
     }
 
     @Test
@@ -22,7 +22,7 @@ class NavigationTest : BaseAppiumTest() {
     fun navigateToAgentsTab() {
         findByIdOrText("nav-agents", "Agents").click()
         assertTrue(waitForText("Agents"), "Agents screen title should appear")
-        assertTrue(waitForText("New agent"), "New agent button should be visible")
+        assertTrue(idExists("new-agent"), "New agent FAB should be visible")
     }
 
     @Test
@@ -37,12 +37,12 @@ class NavigationTest : BaseAppiumTest() {
         assertTrue(waitForText("Import"), "Should show Models screen")
 
         findByIdOrText("nav-agents", "Agents").click()
-        assertTrue(waitForText("New agent"), "Should show Agents screen")
+        assertTrue(idExists("new-agent"), "Should show Agents screen")
 
         findByIdOrText("nav-settings", "Settings").click()
         assertTrue(waitForText("Notifications"), "Should show Settings screen")
 
         findByIdOrText("nav-chat", "Chat").click()
-        assertTrue(waitForText("New chat"), "Should return to Chat screen")
+        assertTrue(idExists("new-chat"), "Should return to Chat screen")
     }
 }

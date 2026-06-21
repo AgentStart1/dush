@@ -32,6 +32,7 @@ abstract class BaseAppiumTest {
     @BeforeEach
     fun setUp() {
         val serverUrl = System.getenv("APPIUM_SERVER_URL") ?: "http://127.0.0.1:4723/"
+        clearAppData(appPackage())
 
         val options = UiAutomator2Options()
             .setPlatformName("Android")
@@ -39,11 +40,10 @@ abstract class BaseAppiumTest {
             .setAppPackage(appPackage())
             .setAppActivity(System.getenv("APP_ACTIVITY") ?: ".MainActivity")
             .setAutoGrantPermissions(true)
-            .setNoReset(false)
+            .setNoReset(true)
 
         System.getenv("ANDROID_DEVICE_NAME")?.let(options::setDeviceName)
         System.getenv("ANDROID_UDID")?.let(options::setUdid)
-        appPath()?.let(options::setApp)
 
         driver = AndroidDriver(URI(serverUrl).toURL(), options)
         failureArtifacts.driver = driver
@@ -60,8 +60,32 @@ abstract class BaseAppiumTest {
         }
     }
 
+    protected fun findById(resourceId: String): WebElement {
+        return runCatching {
+            wait.until(ExpectedConditions.elementToBeClickable(
+                AppiumBy.androidUIAutomator("""new UiSelector().resourceId("$resourceId")"""),
+            ))
+        }.getOrElse {
+            wait.until(ExpectedConditions.elementToBeClickable(By.id("${appPackage()}:id/$resourceId")))
+        }
+    }
+
+    protected fun idExists(resourceId: String, timeout: Duration = Duration.ofSeconds(30)): Boolean {
+        val w = if (timeout.seconds == 30L) wait else WebDriverWait(driver, timeout)
+        return runCatching {
+            w.until {
+                it.findElements(AppiumBy.androidUIAutomator("""new UiSelector().resourceId("$resourceId")""")).isNotEmpty() ||
+                    it.findElements(By.id("${appPackage()}:id/$resourceId")).isNotEmpty()
+            }
+        }.getOrDefault(false)
+    }
+
     protected fun findByIdOrText(resourceId: String, text: String): WebElement {
         return runCatching {
+            wait.until(ExpectedConditions.elementToBeClickable(
+                AppiumBy.androidUIAutomator("""new UiSelector().resourceId("$resourceId")"""),
+            ))
+        }.recoverCatching {
             wait.until(ExpectedConditions.elementToBeClickable(By.id("${appPackage()}:id/$resourceId")))
         }.getOrElse {
             wait.until(ExpectedConditions.elementToBeClickable(AppiumBy.androidUIAutomator("""new UiSelector().text("$text")""")))
@@ -89,12 +113,25 @@ abstract class BaseAppiumTest {
         }.getOrDefault(false)
     }
 
+    protected fun scrollDown() {
+        driver.findElement(AppiumBy.androidUIAutomator(
+            """new UiScrollable(new UiSelector().scrollable(true)).scrollForward()"""
+        ))
+    }
+
     protected fun appPackage(): String {
         return System.getenv("APP_PACKAGE") ?: "com.storyteller_f.dush"
     }
 
-    private fun appPath(): String? {
-        return System.getenv("APP_PATH") ?: System.getProperty("app.path")
+    private fun clearAppData(pkg: String) {
+        val command = mutableListOf(resolveAdbPath())
+        System.getenv("ANDROID_UDID")?.let {
+            command += "-s"
+            command += it
+        }
+        command += listOf("shell", "pm", "clear", pkg)
+        val process = ProcessBuilder(command).redirectErrorStream(true).start()
+        process.waitFor()
     }
 
     private fun saveScreenRecording(testInfo: TestInfo) {

@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -78,12 +79,15 @@ fun DushTheme(
         darkTheme -> DushDarkColors
         else -> DushLightColors
     }
-    val typography = Typography(
-        displayLarge = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Bold),
-        headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleLarge = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleMedium = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-    )
+    val defaultTypography = Typography()
+    val typography = remember {
+        defaultTypography.copy(
+            displayLarge = defaultTypography.displayLarge.copy(fontWeight = FontWeight.Bold),
+            headlineLarge = defaultTypography.headlineLarge.copy(fontWeight = FontWeight.SemiBold),
+            titleLarge = defaultTypography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+            titleMedium = defaultTypography.titleMedium.copy(fontWeight = FontWeight.Medium),
+        )
+    }
     MaterialTheme(
         colorScheme = colorScheme,
         typography = typography,
