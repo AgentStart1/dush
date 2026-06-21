@@ -2,7 +2,6 @@ package com.storyteller_f.dush.agent.worker
 
 import android.content.Context
 import android.content.pm.ServiceInfo
-import android.os.Build
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ForegroundInfo
@@ -22,7 +21,11 @@ class ReplyWorker(
         val agentId = inputData.getString(KEY_AGENT_ID) ?: return Result.failure()
         val userMessageId = inputData.getString(KEY_USER_MESSAGE_ID) ?: return Result.failure()
 
-        setForeground(createForegroundInfo(threadId))
+        val agent = AppGraph.agentRepository.getAgent(agentId)
+        val modelId = agent?.modelId ?: AppGraph.modelRepository.defaultModel()?.id
+        if (modelId != null) {
+            setForeground(createForegroundInfo(threadId))
+        }
         val result = AppGraph.agentRunner.run(threadId, agentId, id.toString())
         return result.fold(
             onSuccess = {
@@ -49,15 +52,11 @@ class ReplyWorker(
 
     private fun createForegroundInfo(threadId: String): ForegroundInfo {
         val notification = AppGraph.notificationHelper.foregroundNotification(threadId)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ForegroundInfo(
-                AgentNotificationHelper.FOREGROUND_NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
-        } else {
-            ForegroundInfo(AgentNotificationHelper.FOREGROUND_NOTIFICATION_ID, notification)
-        }
+        return ForegroundInfo(
+            AgentNotificationHelper.FOREGROUND_NOTIFICATION_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+        )
     }
 
     companion object {
