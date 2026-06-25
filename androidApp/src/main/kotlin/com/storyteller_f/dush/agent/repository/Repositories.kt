@@ -91,15 +91,34 @@ class ModelRepository(
                 downloadUrl = item.url,
                 createdAt = now(),
                 isDefault = isFirst,
+                downloadedBytes = 0,
             )
         )
         try {
-            URL(item.url).openStream().use { input ->
-                destination.outputStream().use { output -> input.copyTo(output) }
+            val connection = URL(item.url).openConnection()
+            connection.connect()
+            val total = connection.contentLengthLong
+            connection.getInputStream().use { input ->
+                destination.outputStream().use { output ->
+                    val buffer = ByteArray(DOWNLOAD_BUFFER_SIZE)
+                    var downloaded = 0L
+                    var lastReported = 0L
+                    var read = input.read(buffer)
+                    while (read >= 0) {
+                        output.write(buffer, 0, read)
+                        downloaded += read
+                        if (downloaded - lastReported >= PROGRESS_UPDATE_INTERVAL) {
+                            lastReported = downloaded
+                            dao.updateDownloadProgress(id, downloaded, total)
+                        }
+                        read = input.read(buffer)
+                    }
+                }
             }
             dao.upsert(
                 requireNotNull(dao.get(id)).copy(
                     sizeBytes = destination.length(),
+                    downloadedBytes = destination.length(),
                     status = ModelStatus.Available,
                 )
             )
@@ -118,6 +137,11 @@ class ModelRepository(
     }
 
     private fun modelDir(): File = File(context.filesDir, "models").also { it.mkdirs() }
+
+    private companion object {
+        const val DOWNLOAD_BUFFER_SIZE = 64 * 1024
+        const val PROGRESS_UPDATE_INTERVAL = 1024L * 1024L
+    }
 }
 
 class AgentRepository(

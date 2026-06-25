@@ -114,9 +114,11 @@ abstract class BaseAppiumTest {
     }
 
     protected fun scrollDown() {
-        driver.findElement(AppiumBy.androidUIAutomator(
-            """new UiScrollable(new UiSelector().scrollable(true)).scrollForward()"""
-        ))
+        runCatching {
+            driver.findElement(AppiumBy.androidUIAutomator(
+                """new UiScrollable(new UiSelector().scrollable(true)).scrollForward()"""
+            ))
+        }
     }
 
     protected fun appPackage(): String {

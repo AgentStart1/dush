@@ -7,6 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -25,6 +27,9 @@ interface ModelDao {
 
     @Query("update models set isDefault = case when id = :id then 1 else 0 end")
     suspend fun selectDefault(id: String)
+
+    @Query("update models set downloadedBytes = :downloadedBytes, sizeBytes = :sizeBytes where id = :id")
+    suspend fun updateDownloadProgress(id: String, downloadedBytes: Long, sizeBytes: Long)
 
     @Query("delete from models where id = :id")
     suspend fun delete(id: String)
@@ -111,11 +116,17 @@ class AgentConverters {
         ChatThreadEntity::class,
         ChatMessageEntity::class,
     ],
-    version = 1,
+    version = 2,
 )
 @TypeConverters(AgentConverters::class)
 abstract class AgentDatabase : RoomDatabase() {
     abstract fun modelDao(): ModelDao
     abstract fun agentDao(): AgentDao
     abstract fun chatDao(): ChatDao
+}
+
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE models ADD COLUMN downloadedBytes INTEGER NOT NULL DEFAULT 0")
+    }
 }

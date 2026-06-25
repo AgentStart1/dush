@@ -40,6 +40,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -61,6 +62,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,114 +105,88 @@ private fun dushTopAppBarColors(): TopAppBarColors = TopAppBarDefaults.topAppBar
 )
 
 @Serializable
-sealed interface AppRoute : NavKey {
-    @Serializable data object ChatList : AppRoute
-    @Serializable data class ChatThread(val threadId: String) : AppRoute
-    @Serializable data object Models : AppRoute
-    @Serializable data class ModelDetail(val modelId: String) : AppRoute
-    @Serializable data object Agents : AppRoute
-    @Serializable data class AgentEditor(val agentId: String? = null) : AppRoute
-    @Serializable data object Settings : AppRoute
+sealed interface RootRoute : NavKey {
+    @Serializable data object Home : RootRoute
+    @Serializable data class ChatThread(val threadId: String) : RootRoute
+    @Serializable data class ModelDetail(val modelId: String) : RootRoute
+    @Serializable data class AgentEditor(val agentId: String? = null) : RootRoute
 }
 
-private val topLevelRoutes = listOf(
-    AppRoute.ChatList,
-    AppRoute.Models,
-    AppRoute.Agents,
-    AppRoute.Settings,
-)
+private enum class HomeTab(val label: String, val icon: ImageVector, val testTag: String) {
+    Chat("Chat", Icons.Filled.ChatBubble, "nav-chat"),
+    Models("Models", Icons.Filled.Memory, "nav-models"),
+    Agents("Agents", Icons.Filled.SmartToy, "nav-agents"),
+    Settings("Settings", Icons.Filled.Settings, "nav-settings"),
+}
 
 @Composable
 fun AndroidAgentApp(initialThreadId: String? = null, bubbleMode: Boolean = false) {
-    val start = initialThreadId?.let { AppRoute.ChatThread(it) } ?: AppRoute.ChatList
+    val start: RootRoute = initialThreadId?.let { RootRoute.ChatThread(it) } ?: RootRoute.Home
     val backStack = rememberNavBackStack(start)
-    val navigate: (AppRoute) -> Unit = { route ->
-        if (route in topLevelRoutes) {
-            backStack.clear()
-            backStack.add(route)
-        } else {
-            backStack.add(route)
-        }
-    }
+    val navigate: (RootRoute) -> Unit = { route -> backStack.add(route) }
+    val goBack: () -> Unit = { if (backStack.size > 1) backStack.removeLastOrNull() }
 
     LaunchedEffect(initialThreadId) {
         initialThreadId?.let {
             backStack.clear()
-            backStack.add(AppRoute.ChatThread(it))
+            backStack.add(RootRoute.ChatThread(it))
         }
     }
 
     DushTheme {
         Surface(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
-            val routeEntryProvider = entryProvider<NavKey> {
-                entry<AppRoute.ChatList> { ChatListScreen(navigate) }
-                entry<AppRoute.ChatThread> { key -> ChatThreadScreen(key.threadId) }
-                entry<AppRoute.Models> { ModelsScreen(navigate) }
-                entry<AppRoute.ModelDetail> { key -> ModelDetailScreen(key.modelId) }
-                entry<AppRoute.Agents> { AgentsScreen(navigate) }
-                entry<AppRoute.AgentEditor> { key -> AgentEditorScreen(key.agentId) { navigate(AppRoute.Agents) } }
-                entry<AppRoute.Settings> { SettingsScreen() }
-            }
-            Scaffold(
-                bottomBar = {
-                    if (!bubbleMode) {
-                        NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            tonalElevation = 0.dp,
-                        ) {
-                            topLevelRoutes.forEach { route ->
-                                NavigationBarItem(
-                                    selected = backStack.lastOrNull() == route,
-                                    onClick = { navigate(route) },
-                                    icon = { Icon(route.icon(), contentDescription = route.label()) },
-                                    label = { Text(route.label()) },
-                                    modifier = Modifier.testTag(route.testTag()),
-                                )
-                            }
-                        }
-                    }
-                }
-            ) { padding ->
-                NavDisplay(
-                    backStack = backStack,
-                    onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
-                    entryProvider = routeEntryProvider,
-                    modifier = Modifier.padding(padding),
-                )
-            }
+            NavDisplay(
+                backStack = backStack,
+                onBack = { goBack() },
+                entryProvider = entryProvider<NavKey> {
+                    entry<RootRoute.Home> { HomeScreen(bubbleMode = bubbleMode, navigate = navigate) }
+                    entry<RootRoute.ChatThread> { key -> ChatThreadScreen(key.threadId) }
+                    entry<RootRoute.ModelDetail> { key -> ModelDetailScreen(key.modelId) }
+                    entry<RootRoute.AgentEditor> { key -> AgentEditorScreen(key.agentId, done = goBack) }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
 
 @Composable
-private fun AppRoute.label(): String = when (this) {
-    AppRoute.ChatList -> "Chat"
-    AppRoute.Models -> "Models"
-    AppRoute.Agents -> "Agents"
-    AppRoute.Settings -> "Settings"
-    else -> ""
-}
-
-@Composable
-private fun AppRoute.icon(): ImageVector = when (this) {
-    AppRoute.ChatList -> Icons.Filled.ChatBubble
-    AppRoute.Models -> Icons.Filled.Memory
-    AppRoute.Agents -> Icons.Filled.SmartToy
-    AppRoute.Settings -> Icons.Filled.Settings
-    else -> Icons.Filled.ChatBubble
-}
-
-private fun AppRoute.testTag(): String = when (this) {
-    AppRoute.ChatList -> "nav-chat"
-    AppRoute.Models -> "nav-models"
-    AppRoute.Agents -> "nav-agents"
-    AppRoute.Settings -> "nav-settings"
-    else -> ""
+private fun HomeScreen(bubbleMode: Boolean, navigate: (RootRoute) -> Unit) {
+    var selectedTab by rememberSaveable { mutableStateOf(HomeTab.Chat) }
+    Scaffold(
+        bottomBar = {
+            if (!bubbleMode) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 0.dp,
+                ) {
+                    HomeTab.entries.forEach { tab ->
+                        NavigationBarItem(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            label = { Text(tab.label) },
+                            modifier = Modifier.testTag(tab.testTag),
+                        )
+                    }
+                }
+            }
+        },
+    ) { padding ->
+        Box(Modifier.padding(padding)) {
+            when (selectedTab) {
+                HomeTab.Chat -> ChatListScreen(onOpenThread = { navigate(RootRoute.ChatThread(it)) })
+                HomeTab.Models -> ModelsScreen(onOpenModel = { navigate(RootRoute.ModelDetail(it)) })
+                HomeTab.Agents -> AgentsScreen(onOpenAgent = { navigate(RootRoute.AgentEditor(it)) })
+                HomeTab.Settings -> SettingsScreen()
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatListScreen(navigate: (AppRoute) -> Unit) {
+private fun ChatListScreen(onOpenThread: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     val threads by AppGraph.chatRepository.observeThreads().collectAsState(initial = emptyList())
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -229,7 +205,7 @@ private fun ChatListScreen(navigate: (AppRoute) -> Unit) {
                     scope.launch {
                         val agent = AppGraph.agentRepository.defaultAgent()
                         val threadId = AppGraph.chatRepository.createThread(agent.id)
-                        navigate(AppRoute.ChatThread(threadId))
+                        onOpenThread(threadId)
                     }
                 },
                 modifier = Modifier.testTag("new-chat"),
@@ -256,7 +232,7 @@ private fun ChatListScreen(navigate: (AppRoute) -> Unit) {
                     ListCard(
                         title = thread.title,
                         subtitle = "Updated ${thread.updatedAt}",
-                        onClick = { navigate(AppRoute.ChatThread(thread.id)) },
+                        onClick = { onOpenThread(thread.id) },
                     )
                 }
             }
@@ -394,7 +370,7 @@ internal fun MessageRow(message: ChatMessageEntity) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModelsScreen(navigate: (AppRoute) -> Unit) {
+private fun ModelsScreen(onOpenModel: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     val models by AppGraph.modelRepository.observeModels().collectAsState(initial = emptyList())
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -445,7 +421,7 @@ private fun ModelsScreen(navigate: (AppRoute) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(models, key = { it.id }) { model ->
-                        ModelCard(model, onClick = { navigate(AppRoute.ModelDetail(model.id)) })
+                        ModelCard(model, onClick = { onOpenModel(model.id) })
                     }
                 }
             }
@@ -455,11 +431,53 @@ private fun ModelsScreen(navigate: (AppRoute) -> Unit) {
 
 @Composable
 private fun ModelCard(model: ModelEntity, onClick: () -> Unit) {
-    ListCard(
-        title = model.name,
-        subtitle = "${model.status} | ${model.backend} | ${model.sizeBytes / 1024 / 1024} MB",
+    if (model.status == ModelStatus.Downloading) {
+        DownloadingModelCard(model, onClick)
+    } else {
+        ListCard(
+            title = model.name,
+            subtitle = "${model.status} | ${model.backend} | ${model.sizeBytes / 1024 / 1024} MB",
+            onClick = onClick,
+        )
+    }
+}
+
+@Composable
+private fun DownloadingModelCard(model: ModelEntity, onClick: () -> Unit) {
+    val total = model.sizeBytes
+    val downloaded = model.downloadedBytes
+    val fraction = if (total > 0) (downloaded.toFloat() / total).coerceIn(0f, 1f) else null
+    Card(
         onClick = onClick,
-    )
+        modifier = Modifier.fillMaxWidth(),
+        shape = ShapeSmall,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(model.name, style = MaterialTheme.typography.titleMedium)
+            if (fraction != null) {
+                LinearProgressIndicator(
+                    progress = { fraction },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            val progressText = if (fraction != null) {
+                "Downloading ${(fraction * 100).toInt()}% · ${downloaded / 1024 / 1024} / ${total / 1024 / 1024} MB"
+            } else {
+                "Downloading · ${downloaded / 1024 / 1024} MB"
+            }
+            Text(
+                progressText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -530,7 +548,7 @@ private fun ModelDetailScreen(modelId: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AgentsScreen(navigate: (AppRoute) -> Unit) {
+private fun AgentsScreen(onOpenAgent: (String?) -> Unit) {
     val scope = rememberCoroutineScope()
     val agents by AppGraph.agentRepository.observeAgents().collectAsState(initial = emptyList())
     LaunchedEffect(Unit) { AppGraph.agentRepository.defaultAgent() }
@@ -546,7 +564,7 @@ private fun AgentsScreen(navigate: (AppRoute) -> Unit) {
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navigate(AppRoute.AgentEditor(null)) },
+                onClick = { onOpenAgent(null) },
                 modifier = Modifier.testTag("new-agent"),
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -571,7 +589,7 @@ private fun AgentsScreen(navigate: (AppRoute) -> Unit) {
                     ListCard(
                         title = agent.name,
                         subtitle = "Temp ${agent.temperature} | Max ${agent.maxTokens}",
-                        onClick = { navigate(AppRoute.AgentEditor(agent.id)) },
+                        onClick = { onOpenAgent(agent.id) },
                         trailing = {
                             if (agent.isDefault) {
                                 StatusChip("Default")

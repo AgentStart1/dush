@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 enum class ModelSource { Imported, Downloaded }
-enum class ModelStatus { Available, Downloading, Failed }
+enum class ModelStatus { Available, Downloading, Failed, Paused, Canceled }
 enum class MessageRole { User, Assistant }
 enum class MessageStatus { Pending, Streaming, Complete, Failed }
 
@@ -22,6 +22,7 @@ data class ModelEntity(
     val downloadUrl: String?,
     val createdAt: Long,
     val isDefault: Boolean,
+    val downloadedBytes: Long = 0,
 )
 
 @Entity(
