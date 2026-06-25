@@ -1,4 +1,4 @@
-name: Android CI
+name: Android Release
 
 permissions:
   contents: write
@@ -11,7 +11,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -24,11 +23,12 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Decode signing key
+        run: echo "${{ secrets.SIGNING_KEY }}" | base64 -d > $HOME/signing_key.jks
+
       - name: Build with Gradle
         run: ./gradlew build
         env:
-          ORG_GRADLE_PROJECT_gpr_user: ${{ github.actor }}
-          ORG_GRADLE_PROJECT_gpr_key: ${{ secrets.GITHUB_TOKEN }}
           storyteller_f_sign_key: ${{ secrets.SIGNING_KEY }}
           storyteller_f_sign_alias: ${{ secrets.ALIAS }}
           storyteller_f_sign_store_password: ${{ secrets.STORE_PASSWORD }}

@@ -1,4 +1,3 @@
-import com.storyteller_f.jksify.getenv
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -8,15 +7,14 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.room)
-    alias(libs.plugins.jksify)
     alias(libs.plugins.screenshot)
 }
 
-val signPath: String? = getenv("storyteller_f_sign_path")
-val signKey: String? = getenv("storyteller_f_sign_key")
-val signAlias: String? = getenv("storyteller_f_sign_alias")
-val signStorePassword: String? = getenv("storyteller_f_sign_store_password")
-val signKeyPassword: String? = getenv("storyteller_f_sign_key_password")
+val signPath: String? = System.getenv("storyteller_f_sign_path")
+val signKey: String? = System.getenv("storyteller_f_sign_key")
+val signAlias: String? = System.getenv("storyteller_f_sign_alias")
+val signStorePassword: String? = System.getenv("storyteller_f_sign_store_password")
+val signKeyPassword: String? = System.getenv("storyteller_f_sign_key_password")
 
 kotlin {
     compilerOptions {
@@ -75,7 +73,7 @@ android {
     signingConfigs {
         val signStorePath = when {
             signPath != null -> File(signPath)
-            signKey != null -> layout.buildDirectory.file("signing/signing_key.jks").get().asFile
+            signKey != null -> File(System.getProperty("user.home"), "signing_key.jks")
             else -> null
         }
         if (signStorePath != null && signAlias != null && signStorePassword != null && signKeyPassword != null) {

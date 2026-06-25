@@ -1,6 +1,7 @@
 package com.storyteller_f.dush.agent.notify
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -57,6 +58,7 @@ class AgentNotificationHelper(
             .build()
     }
 
+    @SuppressLint("MissingPermission") // Guarded by canPostNotifications(); lint can't follow the helper.
     fun showReplyNotification(threadId: String, title: String, text: String) {
         if (!canPostNotifications()) return
         ensureChannels()

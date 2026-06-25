@@ -10,17 +10,6 @@ pluginManagement {
                 includeGroupAndSubgroups("com.google")
             }
         }
-        maven {
-            name = "github"
-            url = uri("https://maven.pkg.github.com/storytellerF/jksify")
-            credentials {
-                username = providers.gradleProperty("gpr.user").orNull
-                password = providers.gradleProperty("gpr.key").orNull
-            }
-            mavenContent {
-                includeGroupAndSubgroups("com.storyteller_f.jksify")
-            }
-        }
         mavenCentral()
         gradlePluginPortal()
     }
