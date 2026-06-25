@@ -1,8 +1,10 @@
 package com.storyteller_f.dush.appium
 
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
+@Tag("critical")
 class NavigationTest : BaseAppiumTest() {
 
     @Test
