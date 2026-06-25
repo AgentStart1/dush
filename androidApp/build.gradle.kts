@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.room)
     alias(libs.plugins.screenshot)
+    alias(libs.plugins.easylauncher)
 }
 
 val signPath: String? = System.getenv("storyteller_f_sign_path")
@@ -92,6 +93,12 @@ android {
             if (releaseSignConfig != null)
                 signingConfig = releaseSignConfig
         }
+        create("daily") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".daily"
+            versionNameSuffix = "-daily"
+            matchingFallbacks += listOf("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -101,4 +108,13 @@ android {
 
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+easylauncher {
+    iconNames.addAll("@mipmap/ic_launcher", "@mipmap/ic_launcher_round")
+    buildTypes {
+        register("daily") {
+            filters(customRibbon(label = "DAILY", ribbonColor = "#FF6D00"))
+        }
+    }
 }
