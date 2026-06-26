@@ -4,11 +4,14 @@ import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.RoomDatabaseConstructor
+import androidx.room.ConstructedBy
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Upsert
 import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -119,14 +122,20 @@ class AgentConverters {
     version = 2,
 )
 @TypeConverters(AgentConverters::class)
+@ConstructedBy(AgentDatabaseConstructor::class)
 abstract class AgentDatabase : RoomDatabase() {
     abstract fun modelDao(): ModelDao
     abstract fun agentDao(): AgentDao
     abstract fun chatDao(): ChatDao
 }
 
+@Suppress("NO_ACTUAL_FOR_EXPECT", "KotlinNoActualForExpect")
+expect object AgentDatabaseConstructor : RoomDatabaseConstructor<AgentDatabase> {
+    override fun initialize(): AgentDatabase
+}
+
 val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE models ADD COLUMN downloadedBytes INTEGER NOT NULL DEFAULT 0")
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE models ADD COLUMN downloadedBytes INTEGER NOT NULL DEFAULT 0")
     }
 }

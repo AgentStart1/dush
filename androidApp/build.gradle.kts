@@ -4,9 +4,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    alias(libs.plugins.ksp)
     alias(libs.plugins.kotlinSerialization)
-    alias(libs.plugins.room)
     alias(libs.plugins.screenshot)
     alias(libs.plugins.easylauncher)
 }
@@ -50,8 +48,6 @@ dependencies {
 
     screenshotTestImplementation(libs.screenshot.validation.api)
     screenshotTestImplementation(libs.compose.uiTooling)
-
-    ksp(libs.androidx.room.compiler)
 }
 
 android {
@@ -104,10 +100,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-}
-
-room {
-    schemaDirectory("$projectDir/schemas")
 }
 
 easylauncher {
