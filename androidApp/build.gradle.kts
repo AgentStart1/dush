@@ -41,7 +41,6 @@ dependencies {
     implementation(libs.kermit)
     implementation(libs.koog.agents)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.litertlm.android)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)

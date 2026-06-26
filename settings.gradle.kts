@@ -35,5 +35,5 @@ plugins {
 include(":androidApp")
 include(":appiumTests")
 include(":shared")
-// include(":desktopApp")
+include(":desktopApp")
 // include(":webApp")

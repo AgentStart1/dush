@@ -10,7 +10,7 @@ import com.storyteller_f.dush.agent.repository.ChatRepository
 import com.storyteller_f.dush.agent.repository.ModelRepository
 import com.storyteller_f.dush.agent.runtime.AgentRunner
 import com.storyteller_f.dush.agent.runtime.KoogAgentRunner
-import com.storyteller_f.dush.agent.runtime.LiteRtLocalLlmRuntime
+import com.storyteller_f.dush.agent.runtime.createLocalLlmRuntime
 
 object AppGraph {
     lateinit var appContext: Context
@@ -43,7 +43,7 @@ object AppGraph {
             chatRepository = chatRepository,
             agentRepository = agentRepository,
             modelRepository = modelRepository,
-            runtime = LiteRtLocalLlmRuntime(appContext),
+            runtime = createLocalLlmRuntime(appContext.cacheDir.absolutePath),
         )
     }
 }

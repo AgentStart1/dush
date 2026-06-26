@@ -24,7 +24,7 @@ kotlin {
     //     }
     // }
     //
-    // jvm()
+    jvm()
     //
     // js {
     //     browser()
@@ -54,6 +54,10 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
+            implementation(libs.litertlm.android)
+        }
+        jvmMain.dependencies {
+            implementation(libs.litertlm.jvm)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -83,4 +87,5 @@ room {
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
     add("kspAndroid", libs.androidx.room.compiler)
+    add("kspJvm", libs.androidx.room.compiler)
 }
