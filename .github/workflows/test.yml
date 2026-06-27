@@ -3,6 +3,15 @@ name: Android Test
 on:
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'androidApp/**'
+      - 'shared/**'
+      - 'appiumTests/**'
+      - '**/*.gradle.kts'
+      - 'gradle/libs.versions.toml'
+      - 'gradle/wrapper/**'
+      - 'settings.gradle.kts'
+      - '.github/workflows/test.yml'
 
 jobs:
   test:
