@@ -59,7 +59,7 @@ class AgentNotificationHelper(
     }
 
     @SuppressLint("MissingPermission") // Guarded by canPostNotifications(); lint can't follow the helper.
-    fun showReplyNotification(threadId: String, title: String, text: String) {
+    fun showReplyNotification(threadId: String, title: String, text: String, autoExpandBubble: Boolean = false) {
         if (!canPostNotifications()) return
         ensureChannels()
         val notification = NotificationCompat.Builder(context, CHANNEL_CONVERSATION)
@@ -69,7 +69,7 @@ class AgentNotificationHelper(
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(threadPendingIntent(threadId))
             .setAutoCancel(true)
-            .setBubbleMetadata(bubbleMetadata(threadId))
+            .setBubbleMetadata(bubbleMetadata(threadId, autoExpandBubble))
             .setShortcutId("thread-$threadId")
             .build()
         NotificationManagerCompat.from(context).notify(threadId.hashCode(), notification)
@@ -92,7 +92,7 @@ class AgentNotificationHelper(
         )
     }
 
-    private fun bubbleMetadata(threadId: String): NotificationCompat.BubbleMetadata? {
+    private fun bubbleMetadata(threadId: String, autoExpand: Boolean): NotificationCompat.BubbleMetadata? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         val intent = Intent(context, BubbleActivity::class.java)
             .setAction(ACTION_OPEN_THREAD)
@@ -108,8 +108,8 @@ class AgentNotificationHelper(
             IconCompat.createWithResource(context, R.mipmap.ic_launcher),
         )
             .setDesiredHeight(640)
-            .setAutoExpandBubble(false)
-            .setSuppressNotification(false)
+            .setAutoExpandBubble(autoExpand)
+            .setSuppressNotification(autoExpand)
             .build()
     }
 

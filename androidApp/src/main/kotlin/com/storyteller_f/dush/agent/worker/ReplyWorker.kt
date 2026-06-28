@@ -27,14 +27,17 @@ class ReplyWorker(
             setForeground(createForegroundInfo(threadId))
         }
         val result = AppGraph.agentRunner.run(threadId, agentId, id.toString())
+        val thread = AppGraph.chatRepository.getThread(threadId)
+        val autoExpand = thread?.bubbleEnabled ?: false
         return result.fold(
             onSuccess = {
                 val latest = AppGraph.chatRepository.messages(threadId).lastOrNull()
                 if (latest != null) {
                     AppGraph.notificationHelper.showReplyNotification(
                         threadId = threadId,
-                        title = AppGraph.chatRepository.getThread(threadId)?.title ?: "Agent reply",
+                        title = thread?.title ?: "Agent reply",
                         text = latest.content.ifBlank { "Reply finished." },
+                        autoExpandBubble = autoExpand,
                     )
                 }
                 Result.success()
@@ -44,6 +47,7 @@ class ReplyWorker(
                     threadId = threadId,
                     title = "Agent reply failed",
                     text = it.message ?: "Unable to generate a reply for $userMessageId.",
+                    autoExpandBubble = autoExpand,
                 )
                 if (runAttemptCount < 1) Result.retry() else Result.failure()
             },
