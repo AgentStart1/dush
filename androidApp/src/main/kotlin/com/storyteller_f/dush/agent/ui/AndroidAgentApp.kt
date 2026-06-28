@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -108,6 +110,7 @@ private fun dushTopAppBarColors(): TopAppBarColors = TopAppBarDefaults.topAppBar
 sealed interface RootRoute : NavKey {
     @Serializable data object Home : RootRoute
     @Serializable data class ChatThread(val threadId: String) : RootRoute
+    @Serializable data class ChatThreadSettings(val threadId: String) : RootRoute
     @Serializable data class ModelDetail(val modelId: String) : RootRoute
     @Serializable data class AgentEditor(val agentId: String? = null) : RootRoute
 }
@@ -140,7 +143,8 @@ fun AndroidAgentApp(initialThreadId: String? = null, bubbleMode: Boolean = false
                 onBack = { goBack() },
                 entryProvider = entryProvider<NavKey> {
                     entry<RootRoute.Home> { HomeScreen(bubbleMode = bubbleMode, navigate = navigate) }
-                    entry<RootRoute.ChatThread> { key -> ChatThreadScreen(key.threadId) }
+                    entry<RootRoute.ChatThread> { key -> ChatThreadScreen(key.threadId, navigate = navigate) }
+                    entry<RootRoute.ChatThreadSettings> { key -> ChatThreadSettingsScreen(key.threadId) }
                     entry<RootRoute.ModelDetail> { key -> ModelDetailScreen(key.modelId) }
                     entry<RootRoute.AgentEditor> { key -> AgentEditorScreen(key.agentId, done = goBack) }
                 },
@@ -242,7 +246,7 @@ private fun ChatListScreen(onOpenThread: (String) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatThreadScreen(threadId: String) {
+private fun ChatThreadScreen(threadId: String, navigate: (RootRoute) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages by AppGraph.chatRepository.observeMessages(threadId).collectAsState(initial = emptyList())
@@ -263,6 +267,11 @@ private fun ChatThreadScreen(threadId: String) {
             TopAppBar(
                 title = { Text("Chat") },
                 colors = dushTopAppBarColors(),
+                actions = {
+                    IconButton(onClick = { navigate(RootRoute.ChatThreadSettings(threadId)) }) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Thread settings")
+                    }
+                },
             )
         },
     ) { padding ->
@@ -830,6 +839,53 @@ private fun StatusChip(label: String) {
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatThreadSettingsScreen(threadId: String) {
+    val scope = rememberCoroutineScope()
+    val thread by AppGraph.chatRepository.observeThread(threadId).collectAsState(initial = null)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Thread settings") },
+                colors = dushTopAppBarColors(),
+            )
+        },
+    ) { padding ->
+        Column(
+            Modifier.padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                shape = ShapeMedium,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Show as bubble", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Reply notifications will automatically expand as a chat bubble",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = thread?.bubbleEnabled ?: false,
+                        onCheckedChange = { enabled ->
+                            scope.launch { AppGraph.chatRepository.setBubbleEnabled(threadId, enabled) }
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 

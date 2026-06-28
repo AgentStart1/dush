@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.storyteller_f.dush.agent.data.AgentDatabase
 import com.storyteller_f.dush.agent.data.MIGRATION_1_2
+import com.storyteller_f.dush.agent.data.MIGRATION_2_3
 import com.storyteller_f.dush.agent.notify.AgentNotificationHelper
 import com.storyteller_f.dush.agent.repository.AgentRepository
 import com.storyteller_f.dush.agent.repository.ChatRepository
@@ -33,7 +34,7 @@ object AppGraph {
         appContext = context.applicationContext
         database = Room.databaseBuilder(appContext, AgentDatabase::class.java, "on-device-agent.db")
             .fallbackToDestructiveMigration(false)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
         modelRepository = ModelRepository(appContext, database.modelDao())
         agentRepository = AgentRepository(database.agentDao(), database.modelDao())

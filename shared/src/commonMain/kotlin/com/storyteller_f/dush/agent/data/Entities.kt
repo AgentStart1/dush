@@ -67,6 +67,7 @@ data class ChatThreadEntity(
     val agentId: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    val bubbleEnabled: Boolean = false,
 )
 
 @Entity(

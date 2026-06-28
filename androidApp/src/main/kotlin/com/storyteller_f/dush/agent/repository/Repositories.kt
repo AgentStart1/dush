@@ -206,9 +206,13 @@ class ChatRepository(
 ) {
     fun observeThreads(): Flow<List<ChatThreadEntity>> = chatDao.observeThreads()
 
+    fun observeThread(threadId: String): Flow<ChatThreadEntity?> = chatDao.observeThread(threadId)
+
     fun observeMessages(threadId: String): Flow<List<ChatMessageEntity>> = chatDao.observeMessages(threadId)
 
     suspend fun getThread(id: String): ChatThreadEntity? = chatDao.getThread(id)
+
+    suspend fun setBubbleEnabled(threadId: String, enabled: Boolean) = chatDao.updateBubbleEnabled(threadId, enabled)
 
     suspend fun messages(threadId: String): List<ChatMessageEntity> = chatDao.messages(threadId)
 

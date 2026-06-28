@@ -84,6 +84,12 @@ interface ChatDao {
 
     @Query("update chat_threads set updatedAt = :updatedAt where id = :threadId")
     suspend fun touchThread(threadId: String, updatedAt: Long)
+
+    @Query("select * from chat_threads where id = :threadId")
+    fun observeThread(threadId: String): Flow<ChatThreadEntity?>
+
+    @Query("update chat_threads set bubbleEnabled = :enabled where id = :threadId")
+    suspend fun updateBubbleEnabled(threadId: String, enabled: Boolean)
 }
 
 class AgentConverters {
@@ -119,7 +125,7 @@ class AgentConverters {
         ChatThreadEntity::class,
         ChatMessageEntity::class,
     ],
-    version = 2,
+    version = 3,
 )
 @TypeConverters(AgentConverters::class)
 @ConstructedBy(AgentDatabaseConstructor::class)
@@ -137,5 +143,11 @@ expect object AgentDatabaseConstructor : RoomDatabaseConstructor<AgentDatabase> 
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE models ADD COLUMN downloadedBytes INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE chat_threads ADD COLUMN bubbleEnabled INTEGER NOT NULL DEFAULT 0")
     }
 }
