@@ -33,6 +33,8 @@ abstract class BaseAppiumTest {
     fun setUp() {
         val serverUrl = System.getenv("APPIUM_SERVER_URL") ?: "http://127.0.0.1:4723/"
         clearAppData(appPackage())
+        setDefaultIme("com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME")
+        putSecureSetting("show_ime_with_hard_keyboard", "1")
 
         val options = UiAutomator2Options()
             .setPlatformName("Android")
@@ -123,6 +125,20 @@ abstract class BaseAppiumTest {
 
     protected fun appPackage(): String {
         return System.getenv("APP_PACKAGE") ?: "com.storyteller_f.dush"
+    }
+
+    private fun putSecureSetting(key: String, value: String) {
+        val command = mutableListOf(resolveAdbPath())
+        System.getenv("ANDROID_UDID")?.let { command += "-s"; command += it }
+        command += listOf("shell", "settings", "put", "secure", key, value)
+        ProcessBuilder(command).redirectErrorStream(true).start().waitFor()
+    }
+
+    private fun setDefaultIme(imeId: String) {
+        val command = mutableListOf(resolveAdbPath())
+        System.getenv("ANDROID_UDID")?.let { command += "-s"; command += it }
+        command += listOf("shell", "ime", "set", imeId)
+        ProcessBuilder(command).redirectErrorStream(true).start().waitFor()
     }
 
     private fun clearAppData(pkg: String) {
