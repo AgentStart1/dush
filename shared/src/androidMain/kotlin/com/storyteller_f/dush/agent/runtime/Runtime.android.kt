@@ -104,6 +104,11 @@ private class LiteRtLocalLlmRuntime(
 
     @OptIn(ExperimentalApi::class)
     private fun Conversation.safeRender(message: Message): String {
-        return runCatching { renderMessageIntoString(message) }.getOrDefault(message.toString())
+        return runCatching { renderMessageIntoString(message) }
+            .getOrDefault(message.toString())
+            .stripChatTemplateMarkers()
     }
 }
+
+internal fun String.stripChatTemplateMarkers(): String =
+    replace(Regex("<\\|turn>\\w*\\n?(?:<turn\\|>\\n?)?"), "")
