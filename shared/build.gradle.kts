@@ -10,6 +10,8 @@ plugins {
 }
 
 kotlin {
+    applyDefaultHierarchyTemplate()
+
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
@@ -35,7 +37,7 @@ kotlin {
     //     browser()
     // }
     
-    androidLibrary {
+    android {
        namespace = "com.storyteller_f.dush.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
@@ -52,12 +54,21 @@ kotlin {
     }
     
     sourceSets {
-        androidMain.dependencies {
-            implementation(libs.compose.uiToolingPreview)
-            implementation(libs.litertlm.android)
+        val litertMain by creating {
+            dependsOn(commonMain.get())
         }
-        jvmMain.dependencies {
-            implementation(libs.litertlm.jvm)
+        androidMain {
+            dependsOn(litertMain)
+            dependencies {
+                implementation(libs.compose.uiToolingPreview)
+                implementation(libs.litertlm.android)
+            }
+        }
+        jvmMain {
+            dependsOn(litertMain)
+            dependencies {
+                implementation(libs.litertlm.jvm)
+            }
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
