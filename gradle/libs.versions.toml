@@ -28,12 +28,14 @@ material3 = "1.9.0"
 room = "2.8.4"
 work = "2.11.2"
 screenshot = "0.0.1-alpha15"
+selenium = "4.50.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }
 appium-java-client = { module = "io.appium:java-client", version.ref = "appium" }
+selenium-support = { module = "org.seleniumhq.selenium:selenium-support", version.ref = "selenium" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }

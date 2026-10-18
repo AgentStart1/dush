@@ -8,6 +8,8 @@ kotlin {
 
 dependencies {
     testImplementation(libs.appium.java.client)
+    // Appium 11 no longer brings in the Selenium wait helpers used by these tests.
+    testImplementation(libs.selenium.support)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotlin.test)
 }
