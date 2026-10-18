@@ -38,7 +38,7 @@ abstract class BaseAppiumTest {
             .setPlatformName("Android")
             .setAutomationName("UiAutomator2")
             .setAppPackage(appPackage())
-            .setAppActivity(System.getenv("APP_ACTIVITY") ?: ".MainActivity")
+            .setAppActivity(System.getenv("APP_ACTIVITY") ?: "com.storyteller_f.dush.MainActivity")
             .setAutoGrantPermissions(true)
             .setNoReset(true)
 
@@ -122,7 +122,7 @@ abstract class BaseAppiumTest {
     }
 
     protected fun appPackage(): String {
-        return System.getenv("APP_PACKAGE") ?: "com.storyteller_f.dush"
+        return System.getenv("APP_PACKAGE") ?: "com.storyteller_f.dush.debug"
     }
 
     private fun clearAppData(pkg: String) {

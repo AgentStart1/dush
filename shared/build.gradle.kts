@@ -92,6 +92,9 @@ kotlin {
 }
 
 room {
+    // This Android KMP library has no build types. All apps use the same database
+    // definition and migration history; applicationId isolates their runtime data.
+    // See DEVELOPMENT.md and https://github.com/storytellerF/dush/issues/18.
     schemaDirectory("$projectDir/schemas")
 }
 

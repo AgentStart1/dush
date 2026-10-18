@@ -1,5 +1,7 @@
 This is a Kotlin Multiplatform project targeting Android, iOS, Web, Desktop (JVM).
 
+See [DEVELOPMENT.md](DEVELOPMENT.md) for Android build isolation and Room schema ownership.
+
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
 

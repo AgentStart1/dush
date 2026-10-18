@@ -82,16 +82,19 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+        }
         getByName("release") {
             isMinifyEnabled = false
             val releaseSignConfig = signingConfigs.findByName("release")
             if (releaseSignConfig != null)
                 signingConfig = releaseSignConfig
         }
-        create("daily") {
+        create("alpha") {
             initWith(getByName("release"))
-            applicationIdSuffix = ".daily"
-            versionNameSuffix = "-daily"
+            applicationIdSuffix = ".alpha"
+            versionNameSuffix = "-alpha"
             matchingFallbacks += listOf("release")
         }
     }
@@ -104,8 +107,11 @@ android {
 easylauncher {
     iconNames.addAll("@mipmap/ic_launcher", "@mipmap/ic_launcher_round")
     buildTypes {
-        register("daily") {
-            filters(customRibbon(label = "DAILY", ribbonColor = "#FF6D00"))
+        register("debug") {
+            filters(customRibbon(label = "DEBUG", ribbonColor = "#1565C0"))
+        }
+        register("alpha") {
+            filters(customRibbon(label = "ALPHA", ribbonColor = "#FF6D00"))
         }
     }
 }
