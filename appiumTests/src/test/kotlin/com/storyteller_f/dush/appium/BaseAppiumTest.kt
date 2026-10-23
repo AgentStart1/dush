@@ -21,6 +21,7 @@ import java.time.Duration
 import java.util.Base64
 
 abstract class BaseAppiumTest {
+    protected open val resetAppDataBeforeTest: Boolean = true
     private var isScreenRecording = false
     protected lateinit var driver: AndroidDriver
     protected lateinit var wait: WebDriverWait
@@ -32,7 +33,7 @@ abstract class BaseAppiumTest {
     @BeforeEach
     fun setUp() {
         val serverUrl = System.getenv("APPIUM_SERVER_URL") ?: "http://127.0.0.1:4723/"
-        clearAppData(appPackage())
+        if (resetAppDataBeforeTest) clearAppData(appPackage())
 
         val options = UiAutomator2Options()
             .setPlatformName("Android")

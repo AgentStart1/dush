@@ -29,8 +29,14 @@ room = "2.8.4"
 work = "2.11.2"
 screenshot = "0.0.1-alpha15"
 selenium = "4.51.0"
+vosk = "0.3.75"
+jna = "5.18.1"
+androidx-testRunner = "1.7.0"
 
 [libraries]
+vosk-android = { module = "com.alphacephei:vosk-android", version.ref = "vosk" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+androidx-testRunner = { module = "androidx.test:runner", version.ref = "androidx-testRunner" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

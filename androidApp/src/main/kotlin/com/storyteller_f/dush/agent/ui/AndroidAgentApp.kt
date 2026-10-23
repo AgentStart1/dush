@@ -2,6 +2,8 @@ package com.storyteller_f.dush.agent.ui
 
 import android.Manifest
 import android.os.Build
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.DevicesOther
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
@@ -116,12 +119,16 @@ sealed interface RootRoute : NavKey {
     @Serializable data object Home : RootRoute
     @Serializable data class ChatThread(val threadId: String) : RootRoute
     @Serializable data class ChatThreadSettings(val threadId: String) : RootRoute
+    @Serializable data object Peripherals : RootRoute
+    @Serializable data object PeripheralAdd : RootRoute
+    @Serializable data class PeripheralDetail(val id: String) : RootRoute
     @Serializable data class ModelDetail(val modelId: String) : RootRoute
     @Serializable data class AgentEditor(val agentId: String? = null) : RootRoute
 }
 
 private enum class HomeTab(val label: String, val icon: ImageVector, val testTag: String) {
     Chat("Chat", Icons.Filled.ChatBubble, "nav-chat"),
+    Peripherals("外设", Icons.Filled.DevicesOther, "nav-peripherals"),
     Models("Models", Icons.Filled.Memory, "nav-models"),
     Agents("Agents", Icons.Filled.SmartToy, "nav-agents"),
     Settings("Settings", Icons.Filled.Settings, "nav-settings"),
@@ -129,14 +136,14 @@ private enum class HomeTab(val label: String, val icon: ImageVector, val testTag
 
 @Composable
 fun AndroidAgentApp(initialThreadId: String? = null, bubbleMode: Boolean = false) {
-    val start: RootRoute = initialThreadId?.let { RootRoute.ChatThread(it) } ?: RootRoute.Home
-    val backStack = rememberNavBackStack(start)
+    val backStack = rememberNavBackStack(RootRoute.Home)
     val navigate: (RootRoute) -> Unit = { route -> backStack.add(route) }
     val goBack: () -> Unit = { if (backStack.size > 1) backStack.removeLastOrNull() }
 
     LaunchedEffect(initialThreadId) {
         initialThreadId?.let {
             backStack.clear()
+            backStack.add(RootRoute.Home)
             backStack.add(RootRoute.ChatThread(it))
         }
     }
@@ -149,7 +156,10 @@ fun AndroidAgentApp(initialThreadId: String? = null, bubbleMode: Boolean = false
                 entryProvider = entryProvider<NavKey> {
                     entry<RootRoute.Home> { HomeScreen(bubbleMode = bubbleMode, navigate = navigate) }
                     entry<RootRoute.ChatThread> { key -> ChatThreadScreen(key.threadId, navigate = navigate) }
-                    entry<RootRoute.ChatThreadSettings> { key -> ChatThreadSettingsScreen(key.threadId) }
+                    entry<RootRoute.ChatThreadSettings> { key -> ChatThreadSettingsScreen(key.threadId, navigate) }
+                    entry<RootRoute.Peripherals> { PeripheralsScreen(open = { navigate(RootRoute.PeripheralDetail(it)) }, add = { navigate(RootRoute.PeripheralAdd) }, back = goBack) }
+                    entry<RootRoute.PeripheralAdd> { PeripheralAddScreen(added = { backStack.removeLastOrNull(); navigate(RootRoute.PeripheralDetail(it)) }, back = goBack) }
+                    entry<RootRoute.PeripheralDetail> { key -> PeripheralDetailScreen(key.id, back = goBack, openThread = { navigate(RootRoute.ChatThread(it)) }) }
                     entry<RootRoute.ModelDetail> { key -> ModelDetailScreen(key.modelId) }
                     entry<RootRoute.AgentEditor> { key -> AgentEditorScreen(key.agentId, done = goBack) }
                 },
@@ -185,6 +195,7 @@ private fun HomeScreen(bubbleMode: Boolean, navigate: (RootRoute) -> Unit) {
         Box(Modifier.padding(padding)) {
             when (selectedTab) {
                 HomeTab.Chat -> ChatListScreen(onOpenThread = { navigate(RootRoute.ChatThread(it)) })
+                HomeTab.Peripherals -> PeripheralsScreen(open = { navigate(RootRoute.PeripheralDetail(it)) }, add = { navigate(RootRoute.PeripheralAdd) })
                 HomeTab.Models -> ModelsScreen(onOpenModel = { navigate(RootRoute.ModelDetail(it)) })
                 HomeTab.Agents -> AgentsScreen(onOpenAgent = { navigate(RootRoute.AgentEditor(it)) })
                 HomeTab.Settings -> SettingsScreen()
@@ -845,7 +856,7 @@ private fun StatusChip(label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatThreadSettingsScreen(threadId: String) {
+private fun ChatThreadSettingsScreen(threadId: String, navigate: (RootRoute) -> Unit) {
     val scope = rememberCoroutineScope()
     val thread by AppGraph.chatRepository.observeThread(threadId).collectAsState(initial = null)
     Scaffold(
@@ -857,9 +868,11 @@ private fun ChatThreadSettingsScreen(threadId: String) {
         },
     ) { padding ->
         Column(
-            Modifier.padding(padding).padding(16.dp),
+            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            ThreadAgentSettingsCard(threadId) { navigate(RootRoute.AgentEditor(it)) }
+            ThreadPeripheralCard(threadId, manage = { navigate(RootRoute.Peripherals) }, detail = { navigate(RootRoute.PeripheralDetail(it)) })
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 shape = ShapeMedium,

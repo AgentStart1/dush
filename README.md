@@ -2,6 +2,32 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web, Desktop (JVM
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for Android build isolation and Room schema ownership.
 
+### 手环语音（Android）
+
+支持已配对的小米手环 6 NFC：直接连接手环，在手机本地识别中文，实时将识别文字显示在手环上，并将最终文字发送到绑定的对话。对话回复会在手环上按 600ms debounce 合并流式更新（文字停止变化后刷新，最终回复立即发送），最多显示前 300 个字符，不自动分页。手机保留完整回复；重新唤起语音会停止旧回复的显示。可在 **Thread settings → 对话 Agent → 配置 Agent → System prompt** 中手动设置简短回复要求，例如“回答不超过 300 字符”。应用不会自动修改 Agent 提示词。
+
+1. 停止小米运动健康或其他应用对这只手环的连接。
+2. 打开首页 **外设** 标签，点 **+** 添加外设。填写名称、蓝牙地址和已有的 32 位十六进制配对密钥；也可以导入 JSON：
+
+   ```json
+   { "address": "YOUR_BAND_BLUETOOTH_ADDRESS", "auth_key": "YOUR_32_HEX_CHARACTER_PAIRING_KEY" }
+   ```
+
+3. 在外设详情允许蓝牙连接，查看连接状态、电量、型号及版本信息。菜单支持连接/断开、刷新信息、改名、绑定对话和移除外设；设备未提供的信息显示“未提供”。
+4. 在外设详情下载约 42 MB 的中文识别模型。下载完成后，识别不需要联网。
+5. 打开目标对话，进入 **Thread settings → 绑定外设**，选择已添加的外设。也可以从外设详情绑定到已有对话。
+6. 状态显示已连接后，在手环唤起语音。停顿后会结束识别，最长录音 20 秒；识别文字会进入绑定对话。
+
+外设详情的 **健康数据** 会显示今日步数、最近有效心率及记录时间、昨晚的已记录睡眠时长和近 7 天的历史汇总。连接后自动同步，也可点 **同步近 7 天**；同步保留手环上的原始记录。**测量心率** 进行一次单次测量，需要佩戴好手环。没有有效记录时显示暂无记录，不把缺失数据当成 0。睡眠仅按手环标记的睡眠分钟汇总，未推断深睡或 REM，历史记录可能不完整。
+
+绑定对话可直接询问“我今天走了多少步”“最近心率是多少”“昨晚记录了多久睡眠”。每次回答会读取该对话绑定外设的本地健康摘要；连接可用时先尝试刷新步数，离线时使用带时间的已有记录。健康缓存加密保存在本机，保留 31 天；移除外设会删除对应本地健康缓存。不会自动更改 Agent 的系统提示词配置。
+
+一只外设同时只能绑定一个对话，解除对话绑定后仍保留外设、密钥和连接，可改绑到其他对话。未绑定对话的外设可以连接并读取设备信息。**断开连接**会保留配置；**移除外设**只删除 dush 中的配置与密钥，不解除手环的厂商配对。配对配置使用 Android Keystore 加密并保存在不参与备份的应用私有目录。已有手环配置会自动保留，无需重新添加。应用本身不需要 root，但需要事先取得现有配对密钥；当前不提供首次绑定流程。
+
+在 **Thread settings → 对话 Agent → 选择 Agent** 中可以切换这个对话使用的助手，列表会显示各 Agent 的模型。**配置 Agent** 可以打开当前助手的配置；切换仅影响此对话后续的消息和手环语音。
+
+手环连接通过前台服务维持，打开应用时会恢复设为连接的外设。Agent 回复仍需要在 dush 中选择本地语言模型；语音识别模型与语言模型分开配置。当前识别模型为 [Vosk 中文小模型](https://alphacephei.com/vosk/models)，其他手环型号尚未验证。
+
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
 

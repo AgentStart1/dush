@@ -1,6 +1,7 @@
 package com.storyteller_f.dush.agent.runtime
 
 import com.storyteller_f.dush.agent.data.MessageStatus
+import kotlinx.coroutines.CancellationException
 import com.storyteller_f.dush.agent.repository.AgentRepository
 import com.storyteller_f.dush.agent.repository.ChatRepository
 import com.storyteller_f.dush.agent.repository.ModelRepository
@@ -14,6 +15,7 @@ class KoogAgentRunner(
     private val agentRepository: AgentRepository,
     private val modelRepository: ModelRepository,
     private val runtime: LocalLlmRuntime,
+    private val healthContext: suspend (String) -> String? = { null },
 ) : AgentRunner {
     override suspend fun run(threadId: String, agentId: String, workerId: String): Result<Unit> = runCatching {
         val agent = requireNotNull(agentRepository.getAgent(agentId)) { "Missing agent $agentId" }
@@ -28,8 +30,11 @@ class KoogAgentRunner(
         }
 
         var content = ""
+        val peripheralContext = try { healthContext(threadId) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { "本地外设健康数据本次读取失败，不能推断数值；可在外设详情重新同步。" }
         runtime.generate(
-            systemPrompt = agent.systemPrompt,
+            systemPrompt = listOfNotNull(agent.systemPrompt, peripheralContext).joinToString("\n\n"),
             history = history,
             temperature = agent.temperature,
             maxTokens = agent.maxTokens,
@@ -39,6 +44,7 @@ class KoogAgentRunner(
         }
         chatRepository.updateAssistantMessage(assistantMessage.id, content, MessageStatus.Complete)
     }.onFailure { throwable ->
+        if (throwable is CancellationException) throw throwable
         val message = "Unable to generate reply: ${throwable.message ?: throwable::class.simpleName}"
         val assistant = chatRepository.createAssistantMessage(threadId, workerId)
         chatRepository.updateAssistantMessage(assistant.id, message, MessageStatus.Failed)

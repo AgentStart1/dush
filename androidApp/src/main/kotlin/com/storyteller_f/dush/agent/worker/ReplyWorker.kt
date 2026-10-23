@@ -8,6 +8,10 @@ import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import com.storyteller_f.dush.agent.data.MessageRole
+import com.storyteller_f.dush.agent.data.MessageStatus
 import com.storyteller_f.dush.agent.AppGraph
 import com.storyteller_f.dush.agent.notify.AgentNotificationHelper
 
@@ -20,13 +24,51 @@ class ReplyWorker(
         val threadId = inputData.getString(KEY_THREAD_ID) ?: return Result.failure()
         val agentId = inputData.getString(KEY_AGENT_ID) ?: return Result.failure()
         val userMessageId = inputData.getString(KEY_USER_MESSAGE_ID) ?: return Result.failure()
+        val bandBindingId = inputData.getString("band_binding_id")
+        val bandSessionId = inputData.getString("band_session_id")
 
         val agent = AppGraph.agentRepository.getAgent(agentId)
         val modelId = agent?.modelId ?: AppGraph.modelRepository.defaultModel()?.id
+        val model = modelId?.let { AppGraph.modelRepository.getModel(it) }
+        val configurationError = when {
+            agent == null -> "对话助手不存在，请在 dush 中重新选择助手"
+            model == null -> "请先在 dush 选择本地语言模型"
+            model.status != com.storyteller_f.dush.agent.data.ModelStatus.Available -> "本地语言模型尚未就绪，请在 dush 中检查下载状态"
+            else -> null
+        }
+        if (configurationError != null) {
+            val assistant = AppGraph.chatRepository.createAssistantMessage(threadId, id.toString())
+            AppGraph.chatRepository.updateAssistantMessage(assistant.id, configurationError, com.storyteller_f.dush.agent.data.MessageStatus.Failed)
+            if (bandBindingId != null && bandSessionId != null) AppGraph.bands.publishReply(bandBindingId, bandSessionId, configurationError)
+            AppGraph.notificationHelper.showReplyNotification(threadId, "需要配置本地模型", configurationError,
+                autoExpandBubble = AppGraph.chatRepository.getThread(threadId)?.bubbleEnabled ?: false)
+            // Missing configuration cannot recover through WorkManager retries.
+            return Result.failure()
+        }
         if (modelId != null) {
             setForeground(createForegroundInfo(threadId))
         }
-        val result = AppGraph.agentRunner.run(threadId, agentId, id.toString())
+        val result = coroutineScope {
+            val streaming = if (bandBindingId != null && bandSessionId != null) launch {
+                AppGraph.chatRepository.observeMessages(threadId)
+                    .mapNotNull { messages -> messages.lastOrNull {
+                        it.role == MessageRole.Assistant && it.workerId == id.toString() && it.status == MessageStatus.Streaming
+                    }?.content?.takeIf { it.isNotBlank() } }
+                    .distinctUntilChanged()
+                    .conflate()
+                    .collect { text -> AppGraph.bands.publishReply(bandBindingId, bandSessionId, text, final = false) }
+            } else null
+            try { AppGraph.agentRunner.run(threadId, agentId, id.toString()) }
+            finally { streaming?.cancelAndJoin() }
+        }
+        if (bandBindingId != null && bandSessionId != null) {
+            val reply = AppGraph.chatRepository.messages(threadId).lastOrNull {
+                it.role == com.storyteller_f.dush.agent.data.MessageRole.Assistant && it.workerId == id.toString()
+            }
+            AppGraph.bands.publishReply(bandBindingId, bandSessionId,
+                if (result.isSuccess) reply?.content.orEmpty().ifBlank { "回复已完成，请查看手机" }
+                else "回复失败，请在 dush 中检查本地模型设置")
+        }
         val thread = AppGraph.chatRepository.getThread(threadId)
         val autoExpand = thread?.bubbleEnabled ?: false
         return result.fold(
@@ -68,13 +110,15 @@ class ReplyWorker(
         const val KEY_AGENT_ID = "agent_id"
         const val KEY_USER_MESSAGE_ID = "user_message_id"
 
-        fun enqueue(context: Context, threadId: String, agentId: String, userMessageId: String) {
+        fun enqueue(context: Context, threadId: String, agentId: String, userMessageId: String, bandBindingId: String? = null, bandSessionId: String? = null) {
             val request = OneTimeWorkRequestBuilder<ReplyWorker>()
                 .setInputData(
                     Data.Builder()
                         .putString(KEY_THREAD_ID, threadId)
                         .putString(KEY_AGENT_ID, agentId)
                         .putString(KEY_USER_MESSAGE_ID, userMessageId)
+                        .putString("band_binding_id", bandBindingId)
+                        .putString("band_session_id", bandSessionId)
                         .build()
                 )
                 .build()

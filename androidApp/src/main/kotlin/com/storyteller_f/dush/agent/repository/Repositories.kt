@@ -214,6 +214,11 @@ class ChatRepository(
 
     suspend fun setBubbleEnabled(threadId: String, enabled: Boolean) = chatDao.updateBubbleEnabled(threadId, enabled)
 
+    suspend fun selectAgent(threadId: String, agentId: String) {
+        requireNotNull(agentDao.get(agentId)) { "Agent no longer exists" }
+        chatDao.updateAgent(threadId, agentId)
+    }
+
     suspend fun messages(threadId: String): List<ChatMessageEntity> = chatDao.messages(threadId)
 
     suspend fun createThread(agentId: String? = null): String {
