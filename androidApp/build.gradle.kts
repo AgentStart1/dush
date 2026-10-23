@@ -41,6 +41,13 @@ dependencies {
     implementation(libs.kermit)
     implementation(libs.koog.agents)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.lifecycle.runtimeCompose)
+    implementation(libs.vosk.android) { artifact { type = "aar"; extension = "aar" } }
+    implementation(libs.jna) { artifact { type = "aar"; extension = "aar" } }
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.testExt.junit)
+    androidTestImplementation(libs.androidx.testRunner)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
@@ -60,6 +67,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     packaging {
         resources {

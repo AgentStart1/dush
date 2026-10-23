@@ -90,6 +90,9 @@ interface ChatDao {
 
     @Query("update chat_threads set bubbleEnabled = :enabled where id = :threadId")
     suspend fun updateBubbleEnabled(threadId: String, enabled: Boolean)
+
+    @Query("update chat_threads set agentId = :agentId where id = :threadId")
+    suspend fun updateAgent(threadId: String, agentId: String)
 }
 
 class AgentConverters {

@@ -12,8 +12,11 @@ import com.storyteller_f.dush.agent.repository.ModelRepository
 import com.storyteller_f.dush.agent.runtime.AgentRunner
 import com.storyteller_f.dush.agent.runtime.KoogAgentRunner
 import com.storyteller_f.dush.agent.runtime.createLocalLlmRuntime
+import com.storyteller_f.dush.agent.band.BandHub
 
 object AppGraph {
+    lateinit var bands: BandHub
+        private set
     lateinit var appContext: Context
         private set
     lateinit var database: AgentDatabase
@@ -32,6 +35,7 @@ object AppGraph {
     fun initialize(context: Context) {
         if (::database.isInitialized) return
         appContext = context.applicationContext
+        bands = BandHub(appContext)
         database = Room.databaseBuilder(appContext, AgentDatabase::class.java, "on-device-agent.db")
             .fallbackToDestructiveMigration(false)
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
@@ -45,6 +49,7 @@ object AppGraph {
             agentRepository = agentRepository,
             modelRepository = modelRepository,
             runtime = createLocalLlmRuntime(appContext.cacheDir.absolutePath),
+            healthContext = bands.healthTool::contextFor,
         )
     }
 }
