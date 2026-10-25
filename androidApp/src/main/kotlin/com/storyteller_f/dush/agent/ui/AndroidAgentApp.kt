@@ -270,6 +270,11 @@ private fun ChatThreadScreen(threadId: String, navigate: (RootRoute) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages by AppGraph.chatRepository.observeMessages(threadId).collectAsState(initial = emptyList())
+    val workManager = remember(context) { androidx.work.WorkManager.getInstance(context) }
+    val replyWork by remember(threadId, workManager) {
+        workManager.getWorkInfosForUniqueWorkFlow("reply-$threadId")
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val replyRunning = replyWork.any { !it.state.isFinished }
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -305,7 +310,7 @@ private fun ChatThreadScreen(threadId: String, navigate: (RootRoute) -> Unit) {
             ) {
                 items(messages, key = { it.id }) { message -> MessageRow(message) }
             }
-            if (messages.any { it.status == MessageStatus.Streaming }) TextButton(onClick = {
+            if (replyRunning) TextButton(onClick = {
                 androidx.work.WorkManager.getInstance(context).cancelUniqueWork("reply-$threadId")
             }, modifier = Modifier.testTag("chat-cancel")) { Text("停止回复") }
             Row(
@@ -339,7 +344,7 @@ private fun ChatThreadScreen(threadId: String, navigate: (RootRoute) -> Unit) {
                                 }
                             }
                         },
-                        enabled = messages.none { it.status == MessageStatus.Streaming },
+                        enabled = !replyRunning,
                         modifier = Modifier.size(48.dp).testTag("send-button"),
                         shape = CircleShape,
                         contentPadding = PaddingValues(0.dp),

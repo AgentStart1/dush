@@ -73,6 +73,46 @@ class InferenceTest {
         } } finally { Files.deleteIfExists(path) }
     }
 
+    @Test fun restartedReplyCancelsInterruptedRowsOnlyInItsOwnThread() = runTest {
+        val path = Files.createTempFile("dush-reply-recovery", ".db")
+        val secrets = MemorySecrets()
+        try {
+            val seed = openDatabase(path.toString()).useDatabase { db ->
+                ConnectionRepository(db.connectionDao(), secrets).save(connection())
+                val agents = AgentRepository(db.agentDao(), db.connectionDao())
+                agents.save("agent", "Agent", "prompt", 0.7, 128, "service")
+                val chats = ChatRepository(db.chatDao(), db.agentDao())
+                val thread = chats.createThread("agent")
+                chats.appendUserMessage(thread, "hello")
+                val finished = chats.createAssistantMessage(thread, "finished-worker")
+                chats.updateAssistantMessage(finished.id, "finished", MessageStatus.Complete)
+                val interrupted = chats.createAssistantMessage(thread, "restarted-worker")
+                chats.updateAssistantMessage(interrupted.id, "partial", MessageStatus.Streaming)
+                db.chatDao().upsertMessage(interrupted.copy(id = "pending", status = MessageStatus.Pending))
+                val other = chats.createThread("agent")
+                chats.createAssistantMessage(other, "unrelated-worker")
+                listOf(thread, other, interrupted.id, finished.id)
+            }
+            openDatabase(path.toString()).useDatabase { db ->
+                val chats = ChatRepository(db.chatDao(), db.agentDao())
+                val runner = KoogAgentRunner(chats, AgentRepository(db.agentDao(), db.connectionDao()),
+                    ConnectionRepository(db.connectionDao(), secrets), InferenceRuntime { _, _, _, history, _, _ ->
+                        assertEquals(listOf("hello", "finished"), history.map { it.content })
+                        flowOf("recovered")
+                    })
+                assertTrue(runner.run(seed[0], "agent", "restarted-worker").isSuccess)
+                val messages = chats.messages(seed[0])
+                assertFalse(messages.any { it.status in listOf(MessageStatus.Pending, MessageStatus.Streaming) })
+                assertEquals(MessageStatus.Canceled, messages.single { it.id == seed[2] }.status)
+                assertEquals("partial", messages.single { it.id == seed[2] }.content)
+                assertEquals(MessageStatus.Canceled, messages.single { it.id == "pending" }.status)
+                assertEquals(MessageStatus.Complete, messages.single { it.id == seed[3] }.status)
+                assertEquals(1, messages.count { it.content == "recovered" && it.status == MessageStatus.Complete })
+                assertEquals(MessageStatus.Streaming, chats.messages(seed[1]).single().status)
+            }
+        } finally { Files.deleteIfExists(path) }
+    }
+
     @Test fun migrationPreservesHistoryAndClearsLocalModelAssociation() = runTest {
         val path = Files.createTempFile("dush-migration", ".db")
         try {

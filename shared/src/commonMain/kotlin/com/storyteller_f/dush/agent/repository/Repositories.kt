@@ -137,8 +137,7 @@ class ChatRepository(
             updatedAt = timestamp,
             workerId = workerId,
         )
-        chatDao.upsertMessage(message)
-        chatDao.touchThread(threadId, timestamp)
+        chatDao.beginReply(message)
         return message
     }
 

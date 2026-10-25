@@ -152,6 +152,10 @@ stops in llmd. It never starts or switches the llmd model service.
 WorkManager, foreground notification, completion notifications, bubbles and band
 routing remain Android adapters. A unique REPLACE job per thread cancels the prior reply when a new user message arrives; cancellation marks the existing assistant row Canceled using bounded cleanup.
 Failures update that same row, preserve partial output, and are not automatically retried.
+At reply start, a DAO transaction marks unfinished assistant rows in that thread Canceled
+before inserting the new row, including when WorkManager restarts the same worker after
+process death. Send/stop controls observe the actual unique WorkManager task state instead
+of treating persisted Streaming rows as evidence of a live task.
 Only Complete messages enter subsequent requests. Scoped peripheral context is read
 for each run and is transient; the saved Agent prompt remains unchanged.
 

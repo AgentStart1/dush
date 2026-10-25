@@ -62,6 +62,17 @@ interface AgentDao {
 
 @Dao
 interface ChatDao {
+    @Query("UPDATE chat_messages SET status = 'Canceled', updatedAt = :timestamp WHERE threadId = :threadId AND role = 'Assistant' AND status IN ('Pending', 'Streaming')")
+    suspend fun cancelUnfinishedReplies(threadId: String, timestamp: Long)
+
+    /** A thread has one reply owner; recovery supersedes rows left by a killed process. */
+    @Transaction
+    suspend fun beginReply(message: ChatMessageEntity) {
+        cancelUnfinishedReplies(message.threadId, message.createdAt)
+        upsertMessage(message)
+        touchThread(message.threadId, message.createdAt)
+    }
+
     @Query("UPDATE chat_messages SET status = 'Canceled', updatedAt = :timestamp WHERE workerId = :workerId AND status IN ('Pending', 'Streaming')")
     suspend fun cancelReplies(workerId: String, timestamp: Long)
 
