@@ -2,7 +2,6 @@ package com.storyteller_f.dush.agent.repository
 
 import com.storyteller_f.dush.agent.data.ConnectionDao
 import com.storyteller_f.dush.agent.data.ConnectionEntity
-import com.storyteller_f.dush.agent.data.AgentDatabase
 import io.ktor.http.URLProtocol
 import io.ktor.http.Url
 import kotlin.uuid.Uuid
@@ -39,8 +38,9 @@ class ConnectionRepository(private val dao: ConnectionDao, private val secrets: 
     /** null preserves the credential; an empty string explicitly clears it. */
     suspend fun save(connection: ConnectionEntity, credential: String? = null): String {
         val validated = connection.validated()
-        if (credential != null) secrets.write(validated.id, credential.trim())
-        require(InferenceProvider.valueOf(validated.provider) !in listOf(InferenceProvider.OpenAI, InferenceProvider.OpenRouter) || secrets.read(validated.id).isNotBlank()) { "Enter an API key" }
+        val effectiveCredential = credential?.trim() ?: secrets.read(validated.id)
+        require(InferenceProvider.valueOf(validated.provider) !in listOf(InferenceProvider.OpenAI, InferenceProvider.OpenRouter) || effectiveCredential.isNotBlank()) { "Enter an API key" }
+        if (credential != null) secrets.write(validated.id, effectiveCredential)
         dao.saveConnection(validated)
         return validated.id
     }

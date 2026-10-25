@@ -51,6 +51,28 @@ class InferenceTest {
         } finally { Files.deleteIfExists(path) }
     }
 
+    @Test fun rejectedOpenRouterKeyClearPreservesSavedConfiguration() = runTest {
+        assertRejectedKeyClearPreservesConfiguration("OpenRouter")
+    }
+
+    @Test fun rejectedOpenAIKeyClearPreservesSavedConfiguration() = runTest {
+        assertRejectedKeyClearPreservesConfiguration("OpenAI")
+    }
+
+    private suspend fun assertRejectedKeyClearPreservesConfiguration(provider: String) {
+        val path = Files.createTempFile("dush-key-validation", ".db")
+        try { openDatabase(path.toString()).useDatabase { db ->
+            val repository = ConnectionRepository(db.connectionDao(), MemorySecrets())
+            val config = connection(provider).copy(endpoint = "https://example.com/v1")
+            repository.save(config, "synthetic-existing-key")
+            assertFailsWith<IllegalArgumentException> {
+                repository.save(config.copy(name = "Rejected edit"), "   ")
+            }
+            assertEquals("synthetic-existing-key", repository.credential(config.id))
+            assertEquals(config, repository.getConnection(config.id))
+        } } finally { Files.deleteIfExists(path) }
+    }
+
     @Test fun migrationPreservesHistoryAndClearsLocalModelAssociation() = runTest {
         val path = Files.createTempFile("dush-migration", ".db")
         try {
