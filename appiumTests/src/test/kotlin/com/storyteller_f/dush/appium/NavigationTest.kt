@@ -14,10 +14,10 @@ class NavigationTest : BaseAppiumTest() {
     }
 
     @Test
-    fun navigateToModelsTab() {
-        findByIdOrText("nav-models", "Models").click()
-        assertTrue(waitForText("Models"), "Models screen title should appear")
-        assertTrue(waitForText("Import"), "Import button should be visible")
+    fun navigateToConnectionsTab() {
+        findByIdOrText("nav-connections", "连接").click()
+        assertTrue(waitForText("推理服务连接"), "Connections screen title should appear")
+        assertTrue(idExists("connection-add"), "Add connection button should be visible")
     }
 
     @Test
@@ -35,8 +35,8 @@ class NavigationTest : BaseAppiumTest() {
 
     @Test
     fun cyclesThroughAllTabs() {
-        findByIdOrText("nav-models", "Models").click()
-        assertTrue(waitForText("Import"), "Should show Models screen")
+        findByIdOrText("nav-connections", "连接").click()
+        assertTrue(idExists("connection-add"), "Should show Connections screen")
 
         findByIdOrText("nav-agents", "Agents").click()
         assertTrue(idExists("new-agent"), "Should show Agents screen")

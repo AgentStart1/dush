@@ -1,5 +1,8 @@
 package com.storyteller_f.dush.agent.ui
 
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.DisposableEffect
 import android.Manifest
 import android.os.Build
 import androidx.compose.foundation.rememberScrollState
@@ -91,8 +94,9 @@ import androidx.navigation3.ui.NavDisplay
 import com.storyteller_f.dush.agent.AppGraph
 import com.storyteller_f.dush.agent.data.ChatMessageEntity
 import com.storyteller_f.dush.agent.data.MessageRole
-import com.storyteller_f.dush.agent.data.ModelEntity
-import com.storyteller_f.dush.agent.data.ModelStatus
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.storyteller_f.dush.agent.repository.InferenceProvider
+import com.storyteller_f.dush.agent.data.MessageStatus
 import com.storyteller_f.dush.agent.worker.ReplyWorker
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -122,14 +126,14 @@ sealed interface RootRoute : NavKey {
     @Serializable data object Peripherals : RootRoute
     @Serializable data object PeripheralAdd : RootRoute
     @Serializable data class PeripheralDetail(val id: String) : RootRoute
-    @Serializable data class ModelDetail(val modelId: String) : RootRoute
+    @Serializable data class ConnectionDetail(val connectionId: String) : RootRoute
     @Serializable data class AgentEditor(val agentId: String? = null) : RootRoute
 }
 
 private enum class HomeTab(val label: String, val icon: ImageVector, val testTag: String) {
     Chat("Chat", Icons.Filled.ChatBubble, "nav-chat"),
     Peripherals("外设", Icons.Filled.DevicesOther, "nav-peripherals"),
-    Models("Models", Icons.Filled.Memory, "nav-models"),
+    Connections("连接", Icons.Filled.Memory, "nav-connections"),
     Agents("Agents", Icons.Filled.SmartToy, "nav-agents"),
     Settings("Settings", Icons.Filled.Settings, "nav-settings"),
 }
@@ -160,7 +164,7 @@ fun AndroidAgentApp(initialThreadId: String? = null, bubbleMode: Boolean = false
                     entry<RootRoute.Peripherals> { PeripheralsScreen(open = { navigate(RootRoute.PeripheralDetail(it)) }, add = { navigate(RootRoute.PeripheralAdd) }, back = goBack) }
                     entry<RootRoute.PeripheralAdd> { PeripheralAddScreen(added = { backStack.removeLastOrNull(); navigate(RootRoute.PeripheralDetail(it)) }, back = goBack) }
                     entry<RootRoute.PeripheralDetail> { key -> PeripheralDetailScreen(key.id, back = goBack, openThread = { navigate(RootRoute.ChatThread(it)) }) }
-                    entry<RootRoute.ModelDetail> { key -> ModelDetailScreen(key.modelId) }
+                    entry<RootRoute.ConnectionDetail> { key -> ConnectionEditorScreen(key.connectionId) }
                     entry<RootRoute.AgentEditor> { key -> AgentEditorScreen(key.agentId, done = goBack) }
                 },
                 modifier = Modifier.fillMaxSize(),
@@ -196,7 +200,7 @@ private fun HomeScreen(bubbleMode: Boolean, navigate: (RootRoute) -> Unit) {
             when (selectedTab) {
                 HomeTab.Chat -> ChatListScreen(onOpenThread = { navigate(RootRoute.ChatThread(it)) })
                 HomeTab.Peripherals -> PeripheralsScreen(open = { navigate(RootRoute.PeripheralDetail(it)) }, add = { navigate(RootRoute.PeripheralAdd) })
-                HomeTab.Models -> ModelsScreen(onOpenModel = { navigate(RootRoute.ModelDetail(it)) })
+                HomeTab.Connections -> ConnectionsScreen(onOpenConnection = { navigate(RootRoute.ConnectionDetail(it)) })
                 HomeTab.Agents -> AgentsScreen(onOpenAgent = { navigate(RootRoute.AgentEditor(it)) })
                 HomeTab.Settings -> SettingsScreen()
             }
@@ -301,6 +305,9 @@ private fun ChatThreadScreen(threadId: String, navigate: (RootRoute) -> Unit) {
             ) {
                 items(messages, key = { it.id }) { message -> MessageRow(message) }
             }
+            if (messages.any { it.status == MessageStatus.Streaming }) TextButton(onClick = {
+                androidx.work.WorkManager.getInstance(context).cancelUniqueWork("reply-$threadId")
+            }, modifier = Modifier.testTag("chat-cancel")) { Text("停止回复") }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Bottom,
@@ -332,6 +339,7 @@ private fun ChatThreadScreen(threadId: String, navigate: (RootRoute) -> Unit) {
                                 }
                             }
                         },
+                        enabled = messages.none { it.status == MessageStatus.Streaming },
                         modifier = Modifier.size(48.dp).testTag("send-button"),
                         shape = CircleShape,
                         contentPadding = PaddingValues(0.dp),
@@ -378,7 +386,7 @@ internal fun MessageRow(message: ChatMessageEntity) {
                 tonalElevation = if (isUser) 0.dp else 1.dp,
             ) {
                 Text(
-                    message.content.ifBlank { message.status.name },
+                    message.content.ifBlank { message.status.name } + if (message.status in listOf(MessageStatus.Canceled, MessageStatus.Failed) && message.content.isNotBlank()) "\n[${message.status}]" else "",
                     color = textColor,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -391,178 +399,72 @@ internal fun MessageRow(message: ChatMessageEntity) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModelsScreen(onOpenModel: (String) -> Unit) {
-    val scope = rememberCoroutineScope()
-    val models by AppGraph.modelRepository.observeModels().collectAsState(initial = emptyList())
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { scope.launch { AppGraph.modelRepository.importModel(it) } }
-    }
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            LargeTopAppBar(
-                title = { Text("Models") },
-                scrollBehavior = scrollBehavior,
-                colors = dushTopAppBarColors(),
-            )
-        },
-    ) { padding ->
-        Column(Modifier.padding(padding)) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                FilledTonalButton(
-                    onClick = { picker.launch(arrayOf("*/*")) },
-                    modifier = Modifier.testTag("models-import"),
-                ) {
-                    Icon(Icons.Filled.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Import")
-                }
-                OutlinedButton(
-                    onClick = { scope.launch { AppGraph.modelRepository.downloadCatalogModel(AppGraph.modelRepository.catalog.first()) } },
-                    modifier = Modifier.testTag("models-download-gemma"),
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Gemma")
-                }
+private fun ConnectionsScreen(onOpenConnection: (String) -> Unit) {
+    val items by AppGraph.connectionRepository.observeConnections().collectAsStateWithLifecycle(initialValue = emptyList())
+    Scaffold(topBar = { TopAppBar(title = { Text("推理服务连接") }) },
+        floatingActionButton = { FloatingActionButton(onClick = { onOpenConnection("") }, modifier = Modifier.testTag("connection-add")) { Icon(Icons.Filled.Add, "添加连接") } }) { padding ->
+        LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { Text("管理推理服务地址、模型 ID 和授权。dush 不再导入或下载语言模型。旧对话已保留，请重新选择连接。") }
+            if (items.isEmpty()) item { Text("还没有连接，点击 + 添加。") }
+            items(items, key = { it.id }) { item ->
+                ListCard(title = item.name + if (item.isDefault) " · 默认" else "", subtitle = "${item.provider} · ${item.model}", onClick = { onOpenConnection(item.id) })
             }
-            if (models.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Filled.Memory,
-                    message = "No models imported",
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(models, key = { it.id }) { model ->
-                        ModelCard(model, onClick = { onOpenModel(model.id) })
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ModelCard(model: ModelEntity, onClick: () -> Unit) {
-    if (model.status == ModelStatus.Downloading) {
-        DownloadingModelCard(model, onClick)
-    } else {
-        ListCard(
-            title = model.name,
-            subtitle = "${model.status} | ${model.backend} | ${model.sizeBytes / 1024 / 1024} MB",
-            onClick = onClick,
-        )
-    }
-}
-
-@Composable
-private fun DownloadingModelCard(model: ModelEntity, onClick: () -> Unit) {
-    val total = model.sizeBytes
-    val downloaded = model.downloadedBytes
-    val fraction = if (total > 0) (downloaded.toFloat() / total).coerceIn(0f, 1f) else null
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = ShapeSmall,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(model.name, style = MaterialTheme.typography.titleMedium)
-            if (fraction != null) {
-                LinearProgressIndicator(
-                    progress = { fraction },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            val progressText = if (fraction != null) {
-                "Downloading ${(fraction * 100).toInt()}% · ${downloaded / 1024 / 1024} / ${total / 1024 / 1024} MB"
-            } else {
-                "Downloading · ${downloaded / 1024 / 1024} MB"
-            }
-            Text(
-                progressText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModelDetailScreen(modelId: String) {
-    val scope = rememberCoroutineScope()
-    val models by AppGraph.modelRepository.observeModels().collectAsState(initial = emptyList())
-    val model = models.firstOrNull { it.id == modelId }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Model detail") },
-                colors = dushTopAppBarColors(),
+private fun ConnectionEditorScreen(connectionId: String) {
+    val host = remember(connectionId) { ConnectionHost(AppGraph.connectionRepository, AppGraph.inferenceRuntime, connectionId, AppGraph.coordination) }
+    DisposableEffect(host) { onDispose { host.close() } }
+    val state by host.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val draft = state.draft
+    val enabled = state.ready && !state.busy
+    Scaffold(topBar = { TopAppBar(title = { Text("连接配置") }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(draft.name, { value -> host.edit { it.copy(name = value) } }, label = { Text("名称") }, enabled = enabled, modifier = Modifier.fillMaxWidth().testTag("connection-name"))
+            var choosingProvider by remember { mutableStateOf(false) }
+            OutlinedButton(onClick = { choosingProvider = true }, enabled = enabled, modifier = Modifier.testTag("connection-provider")) { Text(draft.provider) }
+            if (choosingProvider) androidx.compose.material3.AlertDialog(
+                onDismissRequest = { choosingProvider = false }, title = { Text("推理服务类型") },
+                text = { Column { InferenceProvider.entries.forEach { provider ->
+                    TextButton(onClick = {
+                        choosingProvider = false
+                        host.edit { it.copy(provider = provider.name, endpoint = when (provider) {
+                            InferenceProvider.OpenRouter -> "https://openrouter.ai/api/v1"
+                            InferenceProvider.OpenAI -> "https://api.openai.com/v1"
+                            InferenceProvider.LlmdHttp -> "http://127.0.0.1:11435/v1"
+                            InferenceProvider.LlmdAndroid -> "com.storytellerf.llmd"
+                            InferenceProvider.OpenAICompatible -> ""
+                        }) }
+                    }) { Text(provider.name) }
+                } } }, confirmButton = { TextButton(onClick = { choosingProvider = false }) { Text("取消") } },
             )
-        },
-    ) { padding ->
-        if (model == null) {
-            EmptyState(
-                icon = Icons.Filled.Memory,
-                message = "Model not found",
-                modifier = Modifier.padding(padding).fillMaxSize(),
-            )
-        } else {
-            Column(
-                Modifier.padding(padding).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    ),
-                    shape = ShapeMedium,
-                ) {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(model.name, style = MaterialTheme.typography.headlineSmall)
-                        Text(model.localPath, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        StatusChip(model.status.name)
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FilledTonalButton(onClick = { scope.launch { AppGraph.modelRepository.selectDefault(model.id) } }) {
-                        Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Use as default")
-                    }
-                    OutlinedButton(onClick = { scope.launch { AppGraph.modelRepository.delete(model.id) } }) {
-                        Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete")
-                    }
-                }
-                if (model.status == ModelStatus.Failed && model.downloadUrl != null) {
-                    OutlinedButton(onClick = {
-                        scope.launch {
-                            AppGraph.modelRepository.catalog.firstOrNull { it.id == model.id }
-                                ?.let { AppGraph.modelRepository.downloadCatalogModel(it) }
-                        }
-                    }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Retry download")
-                    }
-                }
+            OutlinedTextField(draft.endpoint, { value -> host.edit { it.copy(endpoint = value) } }, label = { Text(if (draft.provider == InferenceProvider.LlmdAndroid.name) "llmd 安装包名" else "API base URL（含 /v1）") }, enabled = enabled, modifier = Modifier.fillMaxWidth().testTag("connection-endpoint"))
+            OutlinedTextField(draft.model, { value -> host.edit { it.copy(model = value) } }, label = { Text("精确模型 ID") }, enabled = enabled, modifier = Modifier.fillMaxWidth().testTag("connection-model"))
+            if (draft.provider == InferenceProvider.LlmdAndroid.name) {
+                Text("支持 release / .debug / .alpha / .e2e 包名。先授权，再在 llmd 中开启此模型并等待 Ready。此接口仅返回完整回复；取消后 dush 忽略结果，llmd 可能继续推理。")
+                OutlinedButton(onClick = {
+                    try { context.startActivity(android.content.Intent("com.storytellerf.llmd.action.AUTHORIZE_CALLER").setPackage(draft.endpoint).putExtra("caller_package", context.packageName)) }
+                    catch (_: android.content.ActivityNotFoundException) { android.widget.Toast.makeText(context, "未找到所选 llmd 安装版本", android.widget.Toast.LENGTH_LONG).show() }
+                }, enabled = enabled) { Text("授权 llmd") }
+            } else {
+                OutlinedTextField(state.credential ?: "", host::credential, label = { Text("API key（留空保留已有密钥）") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), enabled = enabled, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("connection-key"))
+                TextButton(onClick = host::clearCredential, enabled = enabled) { Text("清除已有密钥") }
+                Text("HTTP 仅用于可信的本地兼容服务；远程服务请使用 HTTPS。Android 访问电脑服务需填写电脑局域网地址。")
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = host::save, enabled = enabled, modifier = Modifier.testTag("connection-save")) { Text("保存") }
+                OutlinedButton(onClick = host::test, enabled = enabled, modifier = Modifier.testTag("connection-test")) { Text("测试连接") }
+                if (state.busy) TextButton(onClick = host::cancel) { Text("取消") }
+            }
+            if (state.items.any { it.id == draft.id }) Row {
+                TextButton(onClick = host::selectDefault, enabled = enabled) { Text("设为默认") }
+                TextButton(onClick = host::delete, enabled = enabled) { Text("删除连接") }
+            }
+            state.message?.let { Text(it, modifier = Modifier.testTag("connection-result")) }
         }
     }
 }
@@ -631,15 +533,15 @@ private fun AgentsScreen(onOpenAgent: (String?) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val agents by AppGraph.agentRepository.observeAgents().collectAsState(initial = emptyList())
-    val models by AppGraph.modelRepository.observeModels().collectAsState(initial = emptyList())
-    val existing = agents.firstOrNull { it.id == agentId }
-    var name by remember(existing?.id) { mutableStateOf(existing?.name ?: "Gemma Assistant") }
-    var prompt by remember(existing?.id) { mutableStateOf(existing?.systemPrompt ?: "You are a helpful on-device assistant.") }
-    var temperature by remember(existing?.id) { mutableStateOf(existing?.temperature ?: 0.7) }
-    var maxTokens by remember(existing?.id) { mutableStateOf((existing?.maxTokens ?: 512).toString()) }
-    val selectedModel = existing?.modelId ?: models.firstOrNull { it.isDefault }?.id ?: models.firstOrNull()?.id
+    val host = remember(agentId) { AgentEditorHost(agentId, AppGraph.agentRepository, AppGraph.connectionRepository, AppGraph.coordination) }
+    DisposableEffect(host) { onDispose { host.close() } }
+    val state by host.state.collectAsStateWithLifecycle()
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LaunchedEffect(host, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            host.effects.collect { done() }
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -655,7 +557,7 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
         ) {
             item {
                 OutlinedTextField(
-                    name, { name = it },
+                    state.name, { value -> host.edit { it.copy(name = value) } },
                     label = { Text("Name") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeSmall,
@@ -664,7 +566,7 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
             }
             item {
                 OutlinedTextField(
-                    prompt, { prompt = it },
+                    state.prompt, { value -> host.edit { it.copy(prompt = value) } },
                     label = { Text("System prompt") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeSmall,
@@ -684,15 +586,15 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
                         ) {
                             Text("Temperature", style = MaterialTheme.typography.titleSmall)
                             Text(
-                                "%.2f".format(temperature),
+                                "%.2f".format(state.temperature),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold,
                             )
                         }
                         Slider(
-                            value = temperature.toFloat(),
-                            onValueChange = { temperature = it.toDouble() },
+                            value = state.temperature.toFloat(),
+                            onValueChange = { value -> host.edit { it.copy(temperature = value.toDouble()) } },
                             valueRange = 0f..1.5f,
                             colors = SliderDefaults.colors(
                                 thumbColor = MaterialTheme.colorScheme.primary,
@@ -704,8 +606,8 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
             }
             item {
                 OutlinedTextField(
-                    maxTokens,
-                    { maxTokens = it.filter(Char::isDigit) },
+                    state.maxTokens,
+                    { value -> host.edit { it.copy(maxTokens = value.filter(Char::isDigit)) } },
                     label = { Text("Max tokens") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeSmall,
@@ -722,9 +624,9 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Model", style = MaterialTheme.typography.titleSmall)
+                        Text("推理服务连接", style = MaterialTheme.typography.titleSmall)
                         Text(
-                            models.firstOrNull { it.id == selectedModel }?.name ?: "None",
+                            state.connections.firstOrNull { it.id == state.connectionId }?.name ?: "使用默认连接",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -732,20 +634,18 @@ private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
                 }
             }
             item {
+                Column {
+                    TextButton(onClick = { host.edit { it.copy(connectionId = null) } }) { Text("使用默认连接") }
+                    state.connections.forEach { connection ->
+                        TextButton(onClick = { host.edit { it.copy(connectionId = connection.id) } }) { Text((if (state.connectionId == connection.id) "✓ " else "") + connection.name) }
+                    }
+                }
+            }
+            item { state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
+            item {
                 FilledTonalButton(
-                    onClick = {
-                        scope.launch {
-                            AppGraph.agentRepository.save(
-                                id = agentId,
-                                name = name,
-                                systemPrompt = prompt,
-                                modelId = selectedModel,
-                                temperature = temperature,
-                                maxTokens = maxTokens.toIntOrNull() ?: 512,
-                            )
-                            done()
-                        }
-                    },
+                    onClick = host::save,
+                    enabled = state.ready && !state.saving,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = ShapeSmall,
                 ) { Text("Save", style = MaterialTheme.typography.titleMedium) }
@@ -785,7 +685,7 @@ private fun SettingsScreen() {
             }
             SettingsSection(title = "Storage") {
                 Text(
-                    "Models are stored in private app storage.",
+                    "推理服务密钥在本机加密保存，语言模型由服务管理。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

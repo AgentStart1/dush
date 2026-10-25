@@ -18,19 +18,23 @@ class PeripheralHealthRuntimeDeviceTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.inMemoryDatabaseBuilder(context,AgentDatabase::class.java).build()
         try {
-            database.modelDao().upsert(ModelEntity("model","test",ModelSource.Imported,"unused",1,ModelStatus.Available,"cpu",null,0,true))
-            val agent = AgentRepository(database.agentDao(),database.modelDao())
-            val agentId = agent.save(null,"test","用户自己的提示词","model",0.7,128)
+            database.connectionDao().upsert(ConnectionEntity("connection", "test", "LlmdHttp", "http://localhost:11435/v1", "test-model", 0, true))
+            val agent = AgentRepository(database.agentDao(),database.connectionDao())
+            val agentId = agent.save(null,"test","用户自己的提示词",0.7,128, "connection")
             val chats = ChatRepository(database.chatDao(),database.agentDao())
             val thread = chats.createThread(agentId)
             chats.appendUserMessage(thread,"我今天走了多少步？")
             var received = ""
-            val runtime = object : LocalLlmRuntime {
-                override suspend fun initialize(modelPath: String, backend: String) = Unit
-                override fun generate(systemPrompt: String,history: List<ConversationMessage>,temperature: Double,maxTokens: Int) = flowOf("已读取外设数据").also { received=systemPrompt }
-                override suspend fun close() = Unit
+            val runtime = InferenceRuntime { _, _, systemPrompt, _, _, _ ->
+                received = systemPrompt
+                flowOf("已读取外设数据")
             }
-            val runner = KoogAgentRunner(chats,agent,ModelRepository(context,database.modelDao()),runtime,healthContext={ id ->
+            val secrets = object : ConnectionSecrets {
+                override suspend fun read(id: String) = ""
+                override suspend fun write(id: String, secret: String) = Unit
+                override suspend fun delete(id: String) = Unit
+            }
+            val runner = KoogAgentRunner(chats,agent,ConnectionRepository(database.connectionDao(), secrets),runtime,healthContext={ id ->
                 assertEquals(thread,id); "read_peripheral_health: today_steps=1234"
             })
             assertTrue(runner.run(thread,agentId,"worker").isSuccess)

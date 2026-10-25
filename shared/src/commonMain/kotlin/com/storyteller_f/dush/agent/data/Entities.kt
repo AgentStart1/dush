@@ -8,8 +8,9 @@ import androidx.room.PrimaryKey
 enum class ModelSource { Imported, Downloaded }
 enum class ModelStatus { Available, Downloading, Failed, Paused, Canceled }
 enum class MessageRole { User, Assistant }
-enum class MessageStatus { Pending, Streaming, Complete, Failed }
+enum class MessageStatus { Pending, Streaming, Complete, Failed, Canceled }
 
+/** Retained only for v1–v3 schema compatibility; never used for inference or file operations. */
 @Entity(tableName = "models")
 data class ModelEntity(
     @PrimaryKey val id: String,
@@ -47,6 +48,7 @@ data class AgentEntity(
     val enabledTools: String,
     val createdAt: Long,
     val isDefault: Boolean,
+    val connectionId: String? = null,
 )
 
 @Entity(
@@ -91,4 +93,16 @@ data class ChatMessageEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val workerId: String?,
+)
+
+/** Inference metadata only. Credentials live in a platform secret store. */
+@Entity(tableName = "connections")
+data class ConnectionEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val provider: String,
+    val endpoint: String,
+    val model: String,
+    val createdAt: Long,
+    val isDefault: Boolean,
 )

@@ -9,9 +9,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
+    <queries><intent><action android:name="com.storytellerf.llmd.action.BIND_IPC" /></intent><intent><action android:name="com.storytellerf.llmd.action.AUTHORIZE_CALLER" /></intent></queries>
     <application
         android:name=".OnDeviceAgentApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -43,7 +45,7 @@
             tools:node="merge">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="on_device_llm_inference" />
+                android:value="inference_service_chat" />
         </service>
     </application>
 
