@@ -23,7 +23,7 @@ kermit = "2.2.0"
 kotlin-wrappers = "2026.10.1"
 kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
-litertlm = "0.13.1"
+ktor = "3.6.0"
 material3 = "1.9.0"
 room = "2.8.4"
 work = "2.11.2"
@@ -34,6 +34,13 @@ jna = "5.18.1"
 androidx-testRunner = "1.7.0"
 
 [libraries]
+androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version = "2.7.0" }
+koog-openai = { module = "ai.koog:prompt-executor-openai-client", version.ref = "koog" }
+koog-openrouter = { module = "ai.koog:prompt-executor-openrouter-client", version.ref = "koog" }
+koog-http-ktor = { module = "ai.koog:http-client-ktor", version.ref = "koog" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+
 vosk-android = { module = "com.alphacephei:vosk-android", version.ref = "vosk" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 androidx-testRunner = { module = "androidx.test:runner", version.ref = "androidx-testRunner" }
@@ -67,11 +74,8 @@ compose-material-icons-extended = { module = "androidx.compose.material:material
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
-koog-agents = { module = "ai.koog:koog-agents", version.ref = "koog" }
 kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
-litertlm-android = { module = "com.google.ai.edge.litertlm:litertlm-android", version.ref = "litertlm" }
-litertlm-jvm = { module = "com.google.ai.edge.litertlm:litertlm-jvm", version.ref = "litertlm" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
 

@@ -54,22 +54,8 @@ kotlin {
     }
     
     sourceSets {
-        val litertMain by creating {
-            dependsOn(commonMain.get())
-        }
-        androidMain {
-            dependsOn(litertMain)
-            dependencies {
-                implementation(libs.compose.uiToolingPreview)
-                implementation(libs.litertlm.android)
-            }
-        }
-        jvmMain {
-            dependsOn(litertMain)
-            dependencies {
-                implementation(libs.litertlm.jvm)
-            }
-        }
+        androidMain.dependencies { implementation(libs.ktor.client.okhttp) }
+        jvmMain.dependencies { implementation(libs.ktor.client.okhttp) }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -80,7 +66,19 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kermit)
+            implementation(libs.koog.openai)
+            implementation(libs.koog.openrouter)
+            implementation(libs.koog.http.ktor)
+            implementation(libs.kotlinx.serialization.json)
             implementation(libs.androidx.room.runtime)
+        }
+        jvmTest {
+            resources.srcDir("schemas")
+            dependencies {
+                implementation(libs.androidx.sqlite.bundled)
+                implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.kotlin.testJunit)
+            }
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -14,8 +14,8 @@ class SettingsScreenTest : BaseAppiumTest() {
             "Notification description text should be visible"
         )
         assertTrue(
-            waitForText("Models are stored"),
-            "Model storage info text should be visible"
+            waitForText("推理服务密钥在本机加密保存"),
+            "Inference credential storage info text should be visible"
         )
     }
 

@@ -8,20 +8,28 @@ import com.storyteller_f.dush.agent.data.MIGRATION_2_3
 import com.storyteller_f.dush.agent.notify.AgentNotificationHelper
 import com.storyteller_f.dush.agent.repository.AgentRepository
 import com.storyteller_f.dush.agent.repository.ChatRepository
-import com.storyteller_f.dush.agent.repository.ModelRepository
+import com.storyteller_f.dush.agent.repository.ConnectionRepository
 import com.storyteller_f.dush.agent.runtime.AgentRunner
 import com.storyteller_f.dush.agent.runtime.KoogAgentRunner
-import com.storyteller_f.dush.agent.runtime.createLocalLlmRuntime
+import com.storyteller_f.dush.agent.runtime.KoogInferenceRuntime
+import com.storyteller_f.dush.agent.runtime.AndroidInferenceRuntime
+import com.storyteller_f.dush.agent.repository.AndroidConnectionSecrets
+import com.storyteller_f.dush.agent.data.MIGRATION_3_4
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import com.storyteller_f.dush.agent.band.BandHub
 
 object AppGraph {
+    val coordination = kotlinx.coroutines.Dispatchers.Default.limitedParallelism(1)
+    lateinit var inferenceRuntime: com.storyteller_f.dush.agent.runtime.InferenceRuntime
+        private set
     lateinit var bands: BandHub
         private set
     lateinit var appContext: Context
         private set
     lateinit var database: AgentDatabase
         private set
-    lateinit var modelRepository: ModelRepository
+    lateinit var connectionRepository: ConnectionRepository
         private set
     lateinit var agentRepository: AgentRepository
         private set
@@ -38,17 +46,18 @@ object AppGraph {
         bands = BandHub(appContext)
         database = Room.databaseBuilder(appContext, AgentDatabase::class.java, "on-device-agent.db")
             .fallbackToDestructiveMigration(false)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
-        modelRepository = ModelRepository(appContext, database.modelDao())
-        agentRepository = AgentRepository(database.agentDao(), database.modelDao())
+        connectionRepository = ConnectionRepository(database.connectionDao(), AndroidConnectionSecrets(appContext))
+        agentRepository = AgentRepository(database.agentDao(), database.connectionDao())
         chatRepository = ChatRepository(database.chatDao(), database.agentDao())
         notificationHelper = AgentNotificationHelper(appContext)
+        inferenceRuntime = AndroidInferenceRuntime(appContext, KoogInferenceRuntime { HttpClient(OkHttp) })
         agentRunner = KoogAgentRunner(
             chatRepository = chatRepository,
             agentRepository = agentRepository,
-            modelRepository = modelRepository,
-            runtime = createLocalLlmRuntime(appContext.cacheDir.absolutePath),
+            connectionRepository = connectionRepository,
+            runtime = inferenceRuntime,
             healthContext = bands.healthTool::contextFor,
         )
     }

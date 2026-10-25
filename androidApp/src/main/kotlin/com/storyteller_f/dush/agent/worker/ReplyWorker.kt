@@ -27,27 +27,7 @@ class ReplyWorker(
         val bandBindingId = inputData.getString("band_binding_id")
         val bandSessionId = inputData.getString("band_session_id")
 
-        val agent = AppGraph.agentRepository.getAgent(agentId)
-        val modelId = agent?.modelId ?: AppGraph.modelRepository.defaultModel()?.id
-        val model = modelId?.let { AppGraph.modelRepository.getModel(it) }
-        val configurationError = when {
-            agent == null -> "对话助手不存在，请在 dush 中重新选择助手"
-            model == null -> "请先在 dush 选择本地语言模型"
-            model.status != com.storyteller_f.dush.agent.data.ModelStatus.Available -> "本地语言模型尚未就绪，请在 dush 中检查下载状态"
-            else -> null
-        }
-        if (configurationError != null) {
-            val assistant = AppGraph.chatRepository.createAssistantMessage(threadId, id.toString())
-            AppGraph.chatRepository.updateAssistantMessage(assistant.id, configurationError, com.storyteller_f.dush.agent.data.MessageStatus.Failed)
-            if (bandBindingId != null && bandSessionId != null) AppGraph.bands.publishReply(bandBindingId, bandSessionId, configurationError)
-            AppGraph.notificationHelper.showReplyNotification(threadId, "需要配置本地模型", configurationError,
-                autoExpandBubble = AppGraph.chatRepository.getThread(threadId)?.bubbleEnabled ?: false)
-            // Missing configuration cannot recover through WorkManager retries.
-            return Result.failure()
-        }
-        if (modelId != null) {
-            setForeground(createForegroundInfo(threadId))
-        }
+        setForeground(createForegroundInfo(threadId))
         val result = coroutineScope {
             val streaming = if (bandBindingId != null && bandSessionId != null) launch {
                 AppGraph.chatRepository.observeMessages(threadId)
@@ -67,7 +47,7 @@ class ReplyWorker(
             }
             AppGraph.bands.publishReply(bandBindingId, bandSessionId,
                 if (result.isSuccess) reply?.content.orEmpty().ifBlank { "回复已完成，请查看手机" }
-                else "回复失败，请在 dush 中检查本地模型设置")
+                else "回复失败，请在 dush 中检查推理服务连接")
         }
         val thread = AppGraph.chatRepository.getThread(threadId)
         val autoExpand = thread?.bubbleEnabled ?: false
@@ -91,7 +71,7 @@ class ReplyWorker(
                     text = it.message ?: "Unable to generate a reply for $userMessageId.",
                     autoExpandBubble = autoExpand,
                 )
-                if (runAttemptCount < 1) Result.retry() else Result.failure()
+                Result.failure()
             },
         )
     }
@@ -122,7 +102,7 @@ class ReplyWorker(
                         .build()
                 )
                 .build()
-            WorkManager.getInstance(context).enqueue(request)
+            WorkManager.getInstance(context).enqueueUniqueWork("reply-$threadId", androidx.work.ExistingWorkPolicy.REPLACE, request)
         }
     }
 }

@@ -1,6 +1,22 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Web, Desktop (JVM).
+dush 是 Android Agent 聊天应用，支持通知、聊天气泡和手环语音。业务层使用 Kotlin Multiplatform；Desktop/JVM 当前仍为模板入口，iOS/Web 尚未启用。
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for Android build isolation and Room schema ownership.
+
+### 推理服务连接
+
+在 **连接 → +** 添加推理服务，填写名称、精确模型 ID 和服务配置，点击 **测试连接** 后 **保存**：
+
+- **OpenRouter**：默认地址 `https://openrouter.ai/api/v1`，需要 API key。
+- **OpenAI**：默认地址 `https://api.openai.com/v1`，使用 Chat Completions，需要 API key。
+- **OpenAICompatible**：填写兼容服务的 API base URL（通常以 `/v1` 结尾），密钥按服务要求填写。
+- **LlmdHttp**：连接运行在电脑上的 llmd，例如 `http://<电脑局域网地址>:11435/v1`；填写 llmd 实际已导入的模型 ID，不含 `.litertlm`。Android 的 `127.0.0.1` 指手机本身。仅在可信网络使用未加密 HTTP。
+- **LlmdAndroid**：填写已安装 llmd 的包名 `com.storytellerf.llmd`（或加 `.debug`、`.alpha`、`.e2e`）。点击 **授权 llmd**，在 llmd 内启用对应模型服务，等待 Ready 后测试。Android llmd 使用 Binder，不监听 HTTP 端口；当前接口返回完整回复，停止后 dush 忽略迟到结果，服务端可能继续推理。
+
+在 **Agents → 配置 Agent** 中选择连接，或使用默认连接。连接可以编辑、设为默认或删除；删除会解除 Agent 的显式关联，之后使用当前默认连接。HTTP 服务的回复实时显示；**停止回复**保留已生成内容。失败或取消的回复不会再次进入模型上下文，失败不自动重发请求。
+
+API key 在 Android Keystore 加密后保存在不参与备份的私有目录，不写入聊天或连接数据库。编辑时留空保留密钥；**清除已有密钥**可显式移除。测试连接仅发送简单测试提示，可能消耗服务额度。聊天内容及绑定手环的临时健康摘要会发送给所选推理服务，请选择你信任的服务。
+
+dush 不再下载、导入、加载或删除本地语言模型文件。升级保留 Agent、提示词、聊天记录、气泡与外设配置，并解除旧本地模型关联；请配置服务连接。旧模型文件不会自动上传或删除，如需释放空间可在 Android 设置中清理应用数据（这也会删除聊天和配置）。手环语音识别模型仍由 dush 单独管理。
 
 ### 手环语音（Android）
 
@@ -26,7 +42,7 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for Android build isolation and Room schema
 
 在 **Thread settings → 对话 Agent → 选择 Agent** 中可以切换这个对话使用的助手，列表会显示各 Agent 的模型。**配置 Agent** 可以打开当前助手的配置；切换仅影响此对话后续的消息和手环语音。
 
-手环连接通过前台服务维持，打开应用时会恢复设为连接的外设。Agent 回复仍需要在 dush 中选择本地语言模型；语音识别模型与语言模型分开配置。当前识别模型为 [Vosk 中文小模型](https://alphacephei.com/vosk/models)，其他手环型号尚未验证。
+手环连接通过前台服务维持，打开应用时会恢复设为连接的外设。Agent 回复需要在 dush 中配置推理服务连接；语音识别模型与语言模型分开配置。当前识别模型为 [Vosk 中文小模型](https://alphacephei.com/vosk/models)，其他手环型号尚未验证。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.

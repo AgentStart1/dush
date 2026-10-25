@@ -28,7 +28,7 @@ Acquire the shared device lease before device operations. Appium tests clear deb
 | alpha | `com.storyteller_f.dush.alpha` |
 
 The three builds can be installed together. Android gives each application ID its
-own data directory, including the Room database, model files and preferences.
+own data directory, including the Room database, speech model files and preferences.
 The namespace and Kotlin package names remain `com.storyteller_f.dush`.
 
 Build with `./gradlew :androidApp:assembleDebug`, `:androidApp:assembleRelease`
@@ -86,7 +86,7 @@ check their application IDs without changing the shared schema configuration:
 ./gradlew :androidApp:assembleDebug :androidApp:assembleRelease :androidApp:assembleAlpha
 ```
 
-对话设置中的 Agent 选择由 `ThreadAgentSettingsHost` 协调，观察对话、Agent 和模型列表。通过 DAO 定向更新现有 `agentId` 字段，避免覆盖同时更新的标题或气泡设置；不改变数据库结构。手环在每次提交识别结果时读取当前对话的 Agent。
+对话设置中的 Agent 选择由 `ThreadAgentSettingsHost` 协调，观察对话、Agent 和推理连接列表。通过 DAO 定向更新现有 `agentId` 字段，避免覆盖同时更新的标题或气泡设置；不改变数据库结构。手环在每次提交识别结果时读取当前对话的 Agent。
 
 手环回复通过 ReplyWorker 观察当前 worker 的 Streaming 消息，合并积压的累计文本；取消并等待观察任务结束后发送最终快照。BandConnection 在同一会话中用 BandReplyStream 对前 300 个 Unicode 字符执行 600ms trailing debounce，最终快照绕过等待立即发送，不分页。会话 ID 隔离迟到回复；解绑和重连销毁当前显示状态。不会自动修改 Agent 系统提示词。命令 09 使用字符限额，ASR 命令 07 保留原字节限额。
 
@@ -106,6 +106,97 @@ Band 6 activity samples are 8-byte minute records. Heart rates 0/255 are missing
 
 `PeripheralHealthStore` persists deduplicated minute and heart samples for 31 days via `EncryptedJsonFile`, outside Android backup with its own Keystore alias. The same envelope helper preserves the existing peripheral-credential file format and alias. Removed device IDs are retired in memory to prevent a late connection write from recreating deleted health data. Never log raw health packets, sensor values, timestamps tied to users, or tool context.
 
-`PeripheralHealthTool` scopes every read to current thread bindings and rechecks ownership after suspended refresh/IO. It excludes Bluetooth addresses and credentials. `KoogAgentRunner` invokes this read-only adapter before generation and passes its timestamped summary as transient runtime context; it does not change the saved Agent system prompt. The local model runtime currently has no native function-calling interface, so this is automatic context provisioning, not a claim of model-initiated tool calls. Connected reads attempt a bounded step refresh on the BLE owner; history/measurements retain their actual sample times. Cancellation propagates and cache-read failure does not prevent an ordinary chat reply.
+`PeripheralHealthTool` scopes every read to current thread bindings and rechecks ownership after suspended refresh/IO. It excludes Bluetooth addresses and credentials. `KoogAgentRunner` invokes this read-only adapter before generation and passes its timestamped summary as transient runtime context; it does not change the saved Agent system prompt. This is automatic context provisioning, not model-initiated tool execution. The summary is sent to the selected inference service and is never appended to saved history or Agent settings. Connected reads attempt a bounded step refresh on the BLE owner; history/measurements retain their actual sample times. Cancellation propagates and cache-read failure does not prevent an ordinary chat reply.
 
 Tests: protocol counters, malformed/truncated data, sentinel heart rates, midnight/DST sleep totals and cross-thread isolation are unit tested. `PeripheralHealthStoreDeviceTest` covers encryption, retention, duplicate sync and deleted-device races. `PeripheralHealthRuntimeDeviceTest` verifies health context reaches the model adapter without editing the saved Agent prompt. `PeripheralHealthTest` runs a non-destructive sync/UI test against an already-added physical peripheral.
+
+
+## Inference service architecture
+
+`shared/commonMain` owns `ConnectionRepository`, `AgentRepository`, `ChatRepository`,
+`ConnectionHost`, `InferenceRuntime`, `KoogInferenceRuntime` and `KoogAgentRunner`.
+UUID/time use Kotlin common APIs. Koog 1.3 provider clients and an explicitly injected
+Ktor transport follow summer's integration; no full agent bundle or LiteRT runtime
+is packaged. OpenAI-compatible HTTP (including desktop llmd) uses Chat Completions
+SSE. Each collection owns and closes its client/transport. Provider errors are mapped
+to safe messages without retaining response bodies, URLs, credentials or exception causes.
+Never enable HTTP body/header logging for these clients.
+
+`ConnectionSecrets` is the platform credential boundary; Android reuses the existing
+Keystore/atomic-file helper with a separate alias/file in `noBackupFilesDir`.
+Database entities contain metadata only. Android backup is disabled to avoid restoring
+an encrypted credential file without its Keystore key. A desktop composition root can
+supply an OS credential store, Room builder and Ktor engine without Android imports;
+this change intentionally leaves the Desktop UI template and remaining issue #23 work.
+
+`ConnectionHost` coordinates editor operations on an application-injected serial
+background dispatcher. Its scope is disposed with the screen. API keys are transient
+state and never `rememberSaveable`. Test uses synthetic content, not user history.
+
+Schema v4 adds `connections` and `agents.connectionId`. Old `models` metadata/table
+and `modelId` column remain solely to preserve the existing schema lineage; no file
+operations or local inference code use them. Migration 3→4 clears local associations
+and marks interrupted replies Canceled, preserving history, agents, thread associations
+and bubble settings. Versions 1–3 remain unchanged; schema v4 is generated by KSP.
+Connection deletion, Agent connection validation/save and default selection use DAO transactions. Credential storage
+is outside SQLite: an interrupted save may leave an unused encrypted key, but it cannot
+publish an unconfigured connection. A failed credential write leaves metadata untouched. Required credentials are validated before any credential write, so a rejected clear preserves the previously saved key and metadata.
+
+`AndroidInferenceRuntime` dispatches LlmdAndroid to the copied public llmd AIDL contract.
+It binds using AUTO_CREATE | IMPORTANT, checks authorization/engineReady/activeModel,
+and limits Binder request size. Authorization is user initiated from the editor.
+The current service contract has one completion callback and no remote cancel RPC:
+local cancellation unbinds and discards late results, without claiming that inference
+stops in llmd. It never starts or switches the llmd model service.
+
+WorkManager, foreground notification, completion notifications, bubbles and band
+routing remain Android adapters. A unique REPLACE job per thread cancels the prior reply when a new user message arrives; cancellation marks the existing assistant row Canceled using bounded cleanup.
+Failures update that same row, preserve partial output, and are not automatically retried.
+At reply start, a DAO transaction marks unfinished assistant rows in that thread Canceled
+before inserting the new row, including when WorkManager restarts the same worker after
+process death. Send/stop controls observe the actual unique WorkManager task state instead
+of treating persisted Streaming rows as evidence of a live task.
+Only Complete messages enter subsequent requests. Scoped peripheral context is read
+for each run and is transient; the saved Agent prompt remains unchanged.
+
+Verification:
+
+```sh
+./gradlew :shared:testAndroidHostTest :shared:jvmTest :androidApp:testDebugUnitTest :androidApp:assembleDebug :androidApp:assembleDebugAndroidTest :desktopApp:compileKotlin
+./gradlew :androidApp:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.storyteller_f.dush.agent.band.PeripheralHealthRuntimeDeviceTest
+./gradlew :appiumTests:test --tests '*ConnectionsScreenTest' --tests '*NavigationTest'
+```
+
+Acquire the shared Android device lease before commands that install or operate a device.
+JVM tests exercise real Room persistence/migration, editor Hosts, runner failure/cancellation and Koog
+HTTP contracts. Android device tests cover the Binder contract/disconnect/cancel paths, encrypted credentials
+and peripheral context isolation. The manual Android smoke flow preserves existing app data and verifies
+connection test/save/restart, real llmd chat through ReplyWorker, and cancellation. The full Appium suite
+clears debug data; do not run it against a provisioned installation without choosing an isolated package. The optional `realOpenRouterStreaming` test runs only when
+`DUSH_RUN_OPENROUTER_TEST=1` and `OPENROUTER_API_KEY` is available to the test process;
+it sends a synthetic prompt to `openai/gpt-4.1-nano`, asserts nonempty output, and never
+prints the key or response. Do not pass credentials as Gradle properties/arguments.
+
+For an optional real llmd HTTP test, set `DUSH_TEST_LLMD_URL` (including `/v1`) and
+`DUSH_TEST_LLMD_MODEL` to an exact installed model ID before `:shared:jvmTest`.
+Real Android llmd verification uses an installed service with an imported model, enabled
+and Ready, plus user approval for the dush package/signature. The llmd authorization
+screen was checked both with Cancel (access remains denied) and Allow (chat succeeds).
+The manual dush flow also verifies ReplyWorker chat, cancellation and a fresh reply afterward.
+
+Run the opt-in real-service regression tests after provisioning and authorizing the service:
+
+```sh
+./gradlew :androidApp:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.storyteller_f.dush.agent.runtime.RealLlmdCrossAppDeviceTest \
+  -Pandroid.testInstrumentationRunnerArguments.llmdPackage=com.storytellerf.llmd.debug \
+  -Pandroid.testInstrumentationRunnerArguments.llmdModel=gemma-4-E2B-it
+```
+
+Without both arguments these tests skip. They use an in-memory dush database and
+synthetic prompts. Cancellation coverage holds a second Binder binding so llmd can
+finish the old request and deliver a late callback; it then executes another real
+inference and checks that the canceled row is unchanged. It does not claim a remote
+cancel RPC exists or stop a model used by other clients. A caller-owned deadline
+remains coroutine cancellation; only the adapter's own deadline becomes a safe
+service-timeout message.

@@ -15,7 +15,7 @@ import com.storyteller_f.dush.agent.AppGraph
 fun ThreadAgentSettingsCard(threadId: String, editAgent: (String?) -> Unit) {
     val host = remember(threadId) {
         ThreadAgentSettingsHost(threadId, AppGraph.chatRepository, AppGraph.agentRepository,
-            AppGraph.modelRepository, AppGraph.bands.coordination)
+            AppGraph.connectionRepository, AppGraph.bands.coordination)
     }
     DisposableEffect(host) { onDispose { host.close() } }
     val state by host.state.collectAsStateWithLifecycle()

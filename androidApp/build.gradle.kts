@@ -22,6 +22,7 @@ kotlin {
 }
 dependencies {
     implementation(projects.shared)
+    implementation(libs.ktor.client.okhttp)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
@@ -39,7 +40,6 @@ dependencies {
     implementation(libs.compose.runtime)
     implementation(libs.compose.ui)
     implementation(libs.kermit)
-    implementation(libs.koog.agents)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.lifecycle.runtimeCompose)
     implementation(libs.vosk.android) { artifact { type = "aar"; extension = "aar" } }
@@ -57,6 +57,7 @@ dependencies {
 }
 
 android {
+    buildFeatures { aidl = true }
     experimentalProperties["android.experimental.enableScreenshotTest"] = true
     namespace = "com.storyteller_f.dush"
     compileSdk = libs.versions.android.compileSdk.get().toInt()

@@ -2,7 +2,7 @@ package com.storyteller_f.dush.agent.ui
 
 import com.storyteller_f.dush.agent.repository.AgentRepository
 import com.storyteller_f.dush.agent.repository.ChatRepository
-import com.storyteller_f.dush.agent.repository.ModelRepository
+import com.storyteller_f.dush.agent.repository.ConnectionRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -18,7 +18,7 @@ class ThreadAgentSettingsHost(
     private val threadId: String,
     private val chats: ChatRepository,
     agents: AgentRepository,
-    models: ModelRepository,
+    models: ConnectionRepository,
     dispatcher: CoroutineDispatcher,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -26,11 +26,11 @@ class ThreadAgentSettingsHost(
     val state = mutableState.asStateFlow()
     init {
         scope.launch {
-            combine(chats.observeThread(threadId), agents.observeAgents(), models.observeModels()) { thread, items, modelItems ->
+            combine(chats.observeThread(threadId), agents.observeAgents(), models.observeConnections()) { thread, items, modelItems ->
                 val options = items.map { agent ->
-                    val model = modelItems.firstOrNull { it.id == agent.modelId }
-                        ?: modelItems.firstOrNull { agent.modelId == null && it.isDefault }
-                    ThreadAgentOption(agent.id, agent.name, model?.name ?: "未配置模型")
+                    val model = modelItems.firstOrNull { it.id == agent.connectionId }
+                        ?: modelItems.firstOrNull { agent.connectionId == null && it.isDefault }
+                    ThreadAgentOption(agent.id, agent.name, model?.name ?: "未配置连接")
                 }
                 options to thread?.agentId
             }.collect { (options, selected) ->
