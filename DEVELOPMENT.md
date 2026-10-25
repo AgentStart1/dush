@@ -162,7 +162,7 @@ for each run and is transient; the saved Agent prompt remains unchanged.
 Verification:
 
 ```sh
-./gradlew :shared:jvmTest :androidApp:testDebugUnitTest :androidApp:assembleDebug :androidApp:assembleDebugAndroidTest :desktopApp:compileKotlin
+./gradlew :shared:testAndroidHostTest :shared:jvmTest :androidApp:testDebugUnitTest :androidApp:assembleDebug :androidApp:assembleDebugAndroidTest :desktopApp:compileKotlin
 ./gradlew :androidApp:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.storyteller_f.dush.agent.band.PeripheralHealthRuntimeDeviceTest
 ./gradlew :appiumTests:test --tests '*ConnectionsScreenTest' --tests '*NavigationTest'
 ```

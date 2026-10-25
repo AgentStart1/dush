@@ -10,7 +10,7 @@ class AgentFlowTest : BaseAppiumTest() {
     @Test
     fun displaysDefaultAgent() {
         findByIdOrText("nav-agents", "Agents").click()
-        assertTrue(waitForText("Gemma Assistant"), "Default agent should be created and visible")
+        assertTrue(waitForText("Assistant"), "Default agent should be created and visible")
         assertTrue(waitForText("Default"), "Default agent should be marked as Default")
     }
 
@@ -53,10 +53,10 @@ class AgentFlowTest : BaseAppiumTest() {
     @Test
     fun editsExistingAgent() {
         findByIdOrText("nav-agents", "Agents").click()
-        waitForText("Gemma Assistant")
+        waitForText("Assistant")
 
         // Tap the default agent card to edit it
-        findByText("Gemma Assistant").click()
+        findByText("Assistant").click()
 
         assertTrue(waitForText("Edit agent"), "Should open editor with 'Edit agent' title")
 
