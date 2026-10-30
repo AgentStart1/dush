@@ -170,6 +170,13 @@ class InferenceTest {
 
     @Test fun cancellationPreservesPartialReplyAndClosesRuntime() = runTest {
         val path = Files.createTempFile("dush-cancel", ".db")
+        val previousWriters = co.touchlab.kermit.Logger.config.logWriterList
+        val cleanupWarnings = MutableStateFlow<List<String>>(emptyList())
+        co.touchlab.kermit.Logger.addLogWriter(object : co.touchlab.kermit.LogWriter() {
+            override fun log(severity: co.touchlab.kermit.Severity, message: String, tag: String, throwable: Throwable?) {
+                if (tag == "AgentRunner" && message.contains("cleanup_failed")) cleanupWarnings.update { it + message }
+            }
+        })
         try { openDatabase(path.toString()).useDatabase { db ->
             val connections = ConnectionRepository(db.connectionDao(), MemorySecrets()); connections.save(connection())
             val agents = AgentRepository(db.agentDao(), db.connectionDao())
@@ -180,13 +187,15 @@ class InferenceTest {
             val runtime = InferenceRuntime { _, _, _, _, _, _ -> flow {
                 try { emit("partial"); started.complete(Unit); awaitCancellation() } finally { closed = true }
             } }
-            val job = launch(Dispatchers.Default) { KoogAgentRunner(chats, agents, connections, runtime).run(thread, agent, "worker") }
+            val job = launch(Dispatchers.Default.limitedParallelism(1)) { KoogAgentRunner(chats, agents, connections, runtime).run(thread, agent, "worker") }
             started.await(); job.cancelAndJoin()
             assertTrue(closed)
             val reply = chats.messages(thread).last()
             assertEquals("partial", reply.content)
             assertEquals(MessageStatus.Canceled, reply.status)
-        } } finally { Files.deleteIfExists(path) }
+            assertTrue(job.isCancelled)
+            assertTrue(cleanupWarnings.value.isEmpty(), "Successful cancellation cleanup must not report failure")
+        } } finally { co.touchlab.kermit.Logger.setLogWriters(previousWriters); Files.deleteIfExists(path) }
     }
 
     @Test fun koogStreamsOpenAICompatibleTextDeltas() = runTest {
