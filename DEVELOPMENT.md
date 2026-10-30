@@ -125,9 +125,9 @@ Never enable HTTP body/header logging for these clients.
 `ConnectionSecrets` is the platform credential boundary; Android reuses the existing
 Keystore/atomic-file helper with a separate alias/file in `noBackupFilesDir`.
 Database entities contain metadata only. Android backup is disabled to avoid restoring
-an encrypted credential file without its Keystore key. A desktop composition root can
-supply an OS credential store, Room builder and Ktor engine without Android imports;
-this change intentionally leaves the Desktop UI template and remaining issue #23 work.
+an encrypted credential file without its Keystore key. `AgentServices` composes the shared repositories and runner for both platforms.
+`DesktopGraph` provides a bundled SQLite driver, all existing migrations, OkHttp and
+a native credential-store adapter without Android imports.
 
 `ConnectionHost` coordinates editor operations on an application-injected serial
 background dispatcher. Its scope is disposed with the screen. API keys are transient
@@ -200,3 +200,107 @@ inference and checks that the canceled row is unchanged. It does not claim a rem
 cancel RPC exists or stop a model used by other clients. A caller-owned deadline
 remains coroutine cancellation; only the adapter's own deadline becomes a safe
 service-timeout message.
+
+## Desktop/JVM workspace
+
+`WorkspaceHost` owns window navigation, observed lists, thread selection and commands on
+an injected serial background dispatcher. Shared connection/Agent editor contents and
+`SharedDushTheme` are also consumed by Android; Android supplies dynamic colors and llmd
+authorization. WorkManager, notifications, bubbles and BLE remain Android adapters.
+Unsent message drafts belong to the window Host and are keyed by thread. Navigation
+restores the selected draft; successful message submission removes it. Drafts are
+memory-only and are not written into chat history or restored after application exit.
+Each open conversation has a separate `ThreadHost`, a Room-generated `PagingSource`
+and a `Pager` cached in that Host's scope. Room invalidation refreshes messages after
+database changes, including streamed text. Initial and subsequent page sizes are 50,
+with prefetch distance 5 and placeholders disabled. `LazyPagingItems` handles access
+hints and retry using Paging's refresh/append load states; there is no parallel manual
+history cache or retry state machine. Inference still reads its full context separately.
+Navigation publishes the new Host immediately and requests cancellation of the old
+Host without joining it. Old paging work has no path to the new Host's state. Each
+conversation scope remains a child of the window scope until cleanup completes, so
+window shutdown still joins all retired sessions before the database can close.
+No database schema change is required.
+The list uses reverse layout and a stable first sentinel at the visual bottom.
+Near the older edge it loads another 50 messages, preserving stable message keys.
+At the bottom the sentinel remains the anchor and follows new text. After the
+user scrolls upward, positioning is left entirely to LazyColumn: there are no
+explicit scroll commands or height compensation, including inside a growing reply.
+
+`ForegroundReplies` owns application-lifetime replies. Its command channel serializes
+send/replace/stop across suspension, joins canceled owners before replacement and ignores
+obsolete completion events. Only live tasks drive the stop control. Before accepting work,
+it marks abandoned Pending/Streaming assistant rows Canceled. Shutdown joins runner cleanup
+before closing Room. `DesktopGraph` holds an OS file lock for the entire database lifetime,
+so another process cannot run recovery against live replies. No schema change is required.
+The JVM entry point uses `awaitApplication`: the default blocking `application` entry
+terminates the process and would bypass the surrounding shutdown cleanup. Closing the
+window must reach the safe `operation=shutdown outcome=complete` log before process exit.
+
+`DesktopConnectionSecrets` uses [java-keyring](https://github.com/javakeyring/java-keyring)
+1.0.4 and serializes native calls on IO. Non-secret hashed marker files track keys written by
+this installation because backend missing-item exceptions are not portable. The native item
+is written before its marker and metadata; a crash can leave an unused native item but never
+publish a configured connection with an unwritten key. Do not move the credential marker
+directory separately. Deletion first writes an empty native envelope, then deletes the
+native item and marker; retrying after interrupted marker cleanup is safe without
+treating credential-store access errors as missing items. The canonical marker
+directory identity namespaces native items. API keys,
+requests, response bodies, user text and raw exceptions must not enter diagnostics. Desktop
+uses Kermit's console writer and logs safe startup/shutdown events.
+
+Run from the repository root (Windows: `./gradlew.bat`):
+
+```sh
+./gradlew :desktopApp:run
+./gradlew :shared:jvmTest :desktopApp:test :androidApp:testDebugUnitTest :androidApp:assembleDebug
+```
+
+Set `DUSH_DATA_DIR` to an isolated absolute directory before launching smoke tests. Do not
+run automation against a provisioned user profile. Desktop tests exercise graph persistence,
+interrupted-reply recovery and exclusive ownership; native credential roundtrip/clear tests
+run on Windows with unique synthetic records and remove their records afterward. macOS/Linux
+credential backends require manual validation on those operating systems. Shared scheduler
+tests cover replacement ordering, stop, failure, shutdown cleanup and process restart.
+
+Manual desktop flow: configure/test/save an HTTP connection, create/edit an Agent, create a
+chat, observe partial and final reply text, stop a reply, send again, switch pages during a
+reply, then restart and check history/settings. A synthetic SSE fixture validates transport
+and wiring but does not establish real model inference. Real llmd/OpenRouter tests remain
+opt-in as described above. iOS/Web targets and their old template sources remain disabled.
+
+`DesktopRealServiceTest` adds opt-in acceptance through the actual desktop composition,
+native credential store and OpenRouter transport. With `DUSH_RUN_OPENROUTER_TEST=1` and
+`OPENROUTER_API_KEY` in the test process environment, run:
+
+```sh
+./gradlew :desktopApp:test --tests '*DesktopRealServiceTest' --rerun
+```
+
+It sends synthetic prompts to `openai/gpt-4.1-nano` and consumes service quota. The tests
+cover connection testing, navigation during a stream, stopping followed by another reply,
+shutdown during a stream, and reopening persisted history and credentials. Temporary
+native credentials are removed afterward; assertions never include the key. Run in the
+logged-in test user's session: Windows SSH logons do not provide the same credential-store
+access as an interactive logon, and Linux needs that desktop's D-Bus session and unlocked
+Secret Service. Do not substitute an in-memory key store for this acceptance check.
+
+Linux native UI automation also needs the Java ATK wrapper on the runtime classpath
+and `-Djavax.accessibility.assistive_technologies=org.GNOME.Accessibility.AtkWrapper`.
+On Ubuntu, install the prebuilt `libatk-wrapper-java` and `libatk-wrapper-java-jni`
+packages and add `/usr/share/java/java-atk-wrapper.jar` to that classpath. Run Appium
+and the application in the same display and D-Bus session. A visible window alone
+does not establish that AT-SPI can discover its controls. Include the matching
+platform's Skiko runtime when transferring host-built classes to another OS.
+
+Intel macOS needs an additional SQLite JNI runtime: the current
+`sqlite-bundled-jvm:2.7.0` artifact contains macOS ARM64, but no `osx_x64` binary.
+Its database cannot start on Intel macOS without a compatible, prebuilt
+`natives/osx_x64/libsqliteJni.dylib` on the classpath. The Intel acceptance run
+used a separately host-built SQLite 2.7.0 JNI library; this is not included in the
+normal application distribution. Do not treat that run as validation of the
+default Intel macOS package. Native startup failures resolve readiness with an
+error so the graph can close the database and release its data-directory lock.
+On macOS, run credential acceptance in the graphical login session, and approve
+the system Keychain prompt for the application when it first reads credentials
+created by a different launcher.

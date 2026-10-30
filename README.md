@@ -1,4 +1,4 @@
-dush 是 Android Agent 聊天应用，支持通知、聊天气泡和手环语音。业务层使用 Kotlin Multiplatform；Desktop/JVM 当前仍为模板入口，iOS/Web 尚未启用。
+dush 是 Android 和 Desktop/JVM Agent 聊天应用，使用 Kotlin Multiplatform 共享业务组件。Android 另支持通知、聊天气泡和手环语音。iOS/Web 尚未启用。
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for Android build isolation and Room schema ownership.
 
@@ -44,47 +44,22 @@ dush 不再下载、导入、加载或删除本地语言模型文件。升级保
 
 手环连接通过前台服务维持，打开应用时会恢复设为连接的外设。Agent 回复需要在 dush 中配置推理服务连接；语音识别模型与语言模型分开配置。当前识别模型为 [Vosk 中文小模型](https://alphacephei.com/vosk/models)，其他手环型号尚未验证。
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+### 桌面端
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+运行 `./gradlew :desktopApp:run`（Windows 使用 `./gradlew.bat`），在 **连接 → 添加连接** 配置并测试 HTTP 推理服务，然后配置 Agent、新建聊天。桌面支持 OpenRouter、OpenAI、OpenAICompatible 和 LlmdHttp；LlmdAndroid、通知、气泡和手环属于 Android 功能。
 
-### Running the apps
+Intel macOS 当前仍需额外提供匹配的 SQLite 原生运行库，常规运行包尚未完成支持；具体要求见开发文档。
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+本机 llmd 默认地址为 `http://127.0.0.1:11435/v1`，模型需要先在 llmd 中导入并启用。dush 不直接管理语言模型文件。
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- Desktop app:
-  - Hot reload: `./gradlew :desktopApp:hotRun --auto`
-  - Standard run: `./gradlew :desktopApp:run`
-- Web app:
-  - Wasm target (faster, modern browsers): `./gradlew :webApp:wasmJsBrowserDevelopmentRun`
-  - JS target (slower, supports older browsers): `./gradlew :webApp:jsBrowserDevelopmentRun`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+回复会在切换页面后继续。发送新消息会先取消该对话的旧回复；**停止**和退出应用会保留已生成的部分。重启后恢复聊天、Agent 和连接，意外中断的回复标记为 Canceled，不自动续传。
 
-### Running tests
+未发送的消息草稿在本次运行期间按会话保留，切换页面或会话不会清空；发送成功后清除。退出应用后不保留未发送草稿。
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+桌面聊天首次加载最近 50 条消息，向上浏览时分批加载更早的历史。停留在底部时通过反向列表的哨兵自然跟随最新回复；向上滚动后不主动滚动或补偿偏移。
 
-- Android tests: `./gradlew :shared:testAndroidHostTest`
-- Desktop tests: `./gradlew :shared:jvmTest`
-- Web tests:
-  - Wasm target: `./gradlew :shared:wasmJsTest`
-  - JS target: `./gradlew :shared:jsTest`
-- iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
+桌面 API key 保存在 Windows Credential Manager、macOS Keychain 或 Linux 系统钥匙串中；Linux 需要可用且已解锁的 Secret Service / KWallet。系统凭据存储不可用时会提示操作失败，不会改用明文保存。钥匙串的保护范围由操作系统和当前登录用户决定。
 
----
+数据目录：Windows `%LOCALAPPDATA%\dush`，macOS `~/Library/Application Support/dush`，Linux `$XDG_DATA_HOME/dush`（默认 `~/.local/share/dush`）。设置页可查看实际路径。同一目录只允许一个应用实例；聊天数据库与系统密钥需要分别保留，复制数据库不会复制密钥。
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
-[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform/#compose-multiplatform),
-[Kotlin/Wasm](https://kotl.in/wasm/)…
-
-We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
-If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+开发和验证说明见 [DEVELOPMENT.md](DEVELOPMENT.md)。
