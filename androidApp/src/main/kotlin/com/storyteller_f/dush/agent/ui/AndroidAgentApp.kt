@@ -423,54 +423,16 @@ private fun ConnectionsScreen(onOpenConnection: (String) -> Unit) {
 private fun ConnectionEditorScreen(connectionId: String) {
     val host = remember(connectionId) { ConnectionHost(AppGraph.connectionRepository, AppGraph.inferenceRuntime, connectionId, AppGraph.coordination) }
     DisposableEffect(host) { onDispose { host.close() } }
-    val state by host.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val draft = state.draft
-    val enabled = state.ready && !state.busy
     Scaffold(topBar = { TopAppBar(title = { Text("连接配置") }) }) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(draft.name, { value -> host.edit { it.copy(name = value) } }, label = { Text("名称") }, enabled = enabled, modifier = Modifier.fillMaxWidth().testTag("connection-name"))
-            var choosingProvider by remember { mutableStateOf(false) }
-            OutlinedButton(onClick = { choosingProvider = true }, enabled = enabled, modifier = Modifier.testTag("connection-provider")) { Text(draft.provider) }
-            if (choosingProvider) androidx.compose.material3.AlertDialog(
-                onDismissRequest = { choosingProvider = false }, title = { Text("推理服务类型") },
-                text = { Column { InferenceProvider.entries.forEach { provider ->
-                    TextButton(onClick = {
-                        choosingProvider = false
-                        host.edit { it.copy(provider = provider.name, endpoint = when (provider) {
-                            InferenceProvider.OpenRouter -> "https://openrouter.ai/api/v1"
-                            InferenceProvider.OpenAI -> "https://api.openai.com/v1"
-                            InferenceProvider.LlmdHttp -> "http://127.0.0.1:11435/v1"
-                            InferenceProvider.LlmdAndroid -> "com.storytellerf.llmd"
-                            InferenceProvider.OpenAICompatible -> ""
-                        }) }
-                    }) { Text(provider.name) }
-                } } }, confirmButton = { TextButton(onClick = { choosingProvider = false }) { Text("取消") } },
-            )
-            OutlinedTextField(draft.endpoint, { value -> host.edit { it.copy(endpoint = value) } }, label = { Text(if (draft.provider == InferenceProvider.LlmdAndroid.name) "llmd 安装包名" else "API base URL（含 /v1）") }, enabled = enabled, modifier = Modifier.fillMaxWidth().testTag("connection-endpoint"))
-            OutlinedTextField(draft.model, { value -> host.edit { it.copy(model = value) } }, label = { Text("精确模型 ID") }, enabled = enabled, modifier = Modifier.fillMaxWidth().testTag("connection-model"))
-            if (draft.provider == InferenceProvider.LlmdAndroid.name) {
-                Text("支持 release / .debug / .alpha / .e2e 包名。先授权，再在 llmd 中开启此模型并等待 Ready。此接口仅返回完整回复；取消后 dush 忽略结果，llmd 可能继续推理。")
-                OutlinedButton(onClick = {
-                    try { context.startActivity(android.content.Intent("com.storytellerf.llmd.action.AUTHORIZE_CALLER").setPackage(draft.endpoint).putExtra("caller_package", context.packageName)) }
-                    catch (_: android.content.ActivityNotFoundException) { android.widget.Toast.makeText(context, "未找到所选 llmd 安装版本", android.widget.Toast.LENGTH_LONG).show() }
-                }, enabled = enabled) { Text("授权 llmd") }
-            } else {
-                OutlinedTextField(state.credential ?: "", host::credential, label = { Text("API key（留空保留已有密钥）") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), enabled = enabled, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("connection-key"))
-                TextButton(onClick = host::clearCredential, enabled = enabled) { Text("清除已有密钥") }
-                Text("HTTP 仅用于可信的本地兼容服务；远程服务请使用 HTTPS。Android 访问电脑服务需填写电脑局域网地址。")
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = host::save, enabled = enabled, modifier = Modifier.testTag("connection-save")) { Text("保存") }
-                OutlinedButton(onClick = host::test, enabled = enabled, modifier = Modifier.testTag("connection-test")) { Text("测试连接") }
-                if (state.busy) TextButton(onClick = host::cancel) { Text("取消") }
-            }
-            if (state.items.any { it.id == draft.id }) Row {
-                TextButton(onClick = host::selectDefault, enabled = enabled) { Text("设为默认") }
-                TextButton(onClick = host::delete, enabled = enabled) { Text("删除连接") }
-            }
-            state.message?.let { Text(it, modifier = Modifier.testTag("connection-result")) }
-        }
+        ConnectionEditorContent(host, InferenceProvider.entries,
+            modifier = Modifier.padding(padding).padding(16.dp), showHeading = false,
+            platformHint = "Android 访问电脑服务需填写电脑局域网地址。",
+            authorize = {
+                val endpoint = host.state.value.draft.endpoint
+                try { context.startActivity(android.content.Intent("com.storytellerf.llmd.action.AUTHORIZE_CALLER").setPackage(endpoint).putExtra("caller_package", context.packageName)) }
+                catch (_: android.content.ActivityNotFoundException) { android.widget.Toast.makeText(context, "未找到所选 llmd 安装版本", android.widget.Toast.LENGTH_LONG).show() }
+            })
     }
 }
 
@@ -540,122 +502,14 @@ private fun AgentsScreen(onOpenAgent: (String?) -> Unit) {
 private fun AgentEditorScreen(agentId: String?, done: () -> Unit) {
     val host = remember(agentId) { AgentEditorHost(agentId, AppGraph.agentRepository, AppGraph.connectionRepository, AppGraph.coordination) }
     DisposableEffect(host) { onDispose { host.close() } }
-    val state by host.state.collectAsStateWithLifecycle()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     LaunchedEffect(host, lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             host.effects.collect { done() }
         }
     }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (agentId == null) "New agent" else "Edit agent") },
-                colors = dushTopAppBarColors(),
-            )
-        },
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item {
-                OutlinedTextField(
-                    state.name, { value -> host.edit { it.copy(name = value) } },
-                    label = { Text("Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ShapeSmall,
-                    singleLine = true,
-                )
-            }
-            item {
-                OutlinedTextField(
-                    state.prompt, { value -> host.edit { it.copy(prompt = value) } },
-                    label = { Text("System prompt") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ShapeSmall,
-                    minLines = 4,
-                )
-            }
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    shape = ShapeMedium,
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Temperature", style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "%.2f".format(state.temperature),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                        Slider(
-                            value = state.temperature.toFloat(),
-                            onValueChange = { value -> host.edit { it.copy(temperature = value.toDouble()) } },
-                            valueRange = 0f..1.5f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        )
-                    }
-                }
-            }
-            item {
-                OutlinedTextField(
-                    state.maxTokens,
-                    { value -> host.edit { it.copy(maxTokens = value.filter(Char::isDigit)) } },
-                    label = { Text("Max tokens") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ShapeSmall,
-                    singleLine = true,
-                )
-            }
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    shape = ShapeMedium,
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("推理服务连接", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            state.connections.firstOrNull { it.id == state.connectionId }?.name ?: "使用默认连接",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-            item {
-                Column {
-                    TextButton(onClick = { host.edit { it.copy(connectionId = null) } }) { Text("使用默认连接") }
-                    state.connections.forEach { connection ->
-                        TextButton(onClick = { host.edit { it.copy(connectionId = connection.id) } }) { Text((if (state.connectionId == connection.id) "✓ " else "") + connection.name) }
-                    }
-                }
-            }
-            item { state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-            item {
-                FilledTonalButton(
-                    onClick = host::save,
-                    enabled = state.ready && !state.saving,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = ShapeSmall,
-                ) { Text("Save", style = MaterialTheme.typography.titleMedium) }
-            }
-        }
+    Scaffold(topBar = { TopAppBar(title = { Text(if (agentId == null) "New agent" else "Edit agent") }, colors = dushTopAppBarColors()) }) { padding ->
+        AgentEditorContent(host, modifier = Modifier.padding(padding).padding(16.dp), showHeading = false)
     }
 }
 

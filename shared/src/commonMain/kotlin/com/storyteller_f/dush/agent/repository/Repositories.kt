@@ -71,6 +71,11 @@ class ChatRepository(
     private val chatDao: ChatDao,
     private val agentDao: AgentDao,
 ) {
+    fun messagePagingSource(threadId: String) = chatDao.messagePagingSource(threadId)
+
+    /** Called once by the foreground scheduler before accepting work after process restart. */
+    suspend fun recoverInterruptedReplies() = chatDao.recoverInterruptedReplies(now())
+
     suspend fun cancelReplies(workerId: String) = chatDao.cancelReplies(workerId, now())
 
     fun observeThreads(): Flow<List<ChatThreadEntity>> = chatDao.observeThreads()

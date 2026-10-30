@@ -10,7 +10,6 @@ import com.storyteller_f.dush.agent.repository.AgentRepository
 import com.storyteller_f.dush.agent.repository.ChatRepository
 import com.storyteller_f.dush.agent.repository.ConnectionRepository
 import com.storyteller_f.dush.agent.runtime.AgentRunner
-import com.storyteller_f.dush.agent.runtime.KoogAgentRunner
 import com.storyteller_f.dush.agent.runtime.KoogInferenceRuntime
 import com.storyteller_f.dush.agent.runtime.AndroidInferenceRuntime
 import com.storyteller_f.dush.agent.repository.AndroidConnectionSecrets
@@ -48,17 +47,13 @@ object AppGraph {
             .fallbackToDestructiveMigration(false)
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
-        connectionRepository = ConnectionRepository(database.connectionDao(), AndroidConnectionSecrets(appContext))
-        agentRepository = AgentRepository(database.agentDao(), database.connectionDao())
-        chatRepository = ChatRepository(database.chatDao(), database.agentDao())
         notificationHelper = AgentNotificationHelper(appContext)
         inferenceRuntime = AndroidInferenceRuntime(appContext, KoogInferenceRuntime { HttpClient(OkHttp) })
-        agentRunner = KoogAgentRunner(
-            chatRepository = chatRepository,
-            agentRepository = agentRepository,
-            connectionRepository = connectionRepository,
-            runtime = inferenceRuntime,
-            healthContext = bands.healthTool::contextFor,
-        )
+        val services = AgentServices(database, AndroidConnectionSecrets(appContext), inferenceRuntime,
+            healthContext = bands.healthTool::contextFor)
+        connectionRepository = services.connections
+        agentRepository = services.agents
+        chatRepository = services.chats
+        agentRunner = services.runner
     }
 }

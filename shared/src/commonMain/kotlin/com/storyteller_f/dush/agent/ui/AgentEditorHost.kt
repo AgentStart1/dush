@@ -12,8 +12,8 @@ data class AgentEditorState(val name: String = "Assistant", val prompt: String =
     val saving: Boolean = false, val error: String? = null)
 
 class AgentEditorHost(private val id: String?, private val agents: AgentRepository,
-    connections: ConnectionRepository, dispatcher: CoroutineDispatcher) {
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    connections: ConnectionRepository, dispatcher: CoroutineDispatcher, parent: Job? = null) {
+    private val scope = CoroutineScope(SupervisorJob(parent) + dispatcher)
     private val mutable = MutableStateFlow(AgentEditorState())
     val state = mutable.asStateFlow()
     private val saved = Channel<Unit>(Channel.BUFFERED)

@@ -20,7 +20,9 @@ class KoogAgentRunner(
     } catch (cancelled: CancellationException) {
         // Query by owner as cancellation can happen after INSERT commits but before its result resumes.
         try {
-            withContext(NonCancellable + Dispatchers.Default) { withTimeout(5_000) { chatRepository.cancelReplies(workerId) } }
+            // Room owns its I/O dispatcher. Changing dispatcher here would rethrow the
+            // caller's cancellation on return and misreport successful cleanup as failed.
+            withContext(NonCancellable) { withTimeout(5_000) { chatRepository.cancelReplies(workerId) } }
         } catch (_: Exception) {
             co.touchlab.kermit.Logger.w(tag = "AgentRunner") { "operation=cancel_reply outcome=cleanup_failed" }
         }

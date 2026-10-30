@@ -26,6 +26,7 @@ kotlinx-serialization = "1.11.0"
 ktor = "3.6.0"
 material3 = "1.9.0"
 room = "2.8.4"
+paging = "3.5.3"
 work = "2.11.2"
 screenshot = "0.0.1-alpha15"
 selenium = "4.51.0"
@@ -34,6 +35,7 @@ jna = "5.18.1"
 androidx-testRunner = "1.7.0"
 
 [libraries]
+java-keyring = { module = "com.github.javakeyring:java-keyring", version = "1.0.4" }
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version = "2.7.0" }
 koog-openai = { module = "ai.koog:prompt-executor-openai-client", version.ref = "koog" }
 koog-openrouter = { module = "ai.koog:prompt-executor-openrouter-client", version.ref = "koog" }
@@ -63,6 +65,9 @@ androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", vers
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+androidx-room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
+androidx-paging-common = { module = "androidx.paging:paging-common", version.ref = "paging" }
+androidx-paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
 androidx-work-runtimeKtx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 compose-uiTooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "composeMultiplatform" }
 androidx-lifecycle-viewmodelCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }

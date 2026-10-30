@@ -62,6 +62,12 @@ interface AgentDao {
 
 @Dao
 interface ChatDao {
+    @Query("SELECT * FROM chat_messages WHERE threadId = :threadId ORDER BY rowid DESC")
+    fun messagePagingSource(threadId: String): androidx.paging.PagingSource<Int, ChatMessageEntity>
+
+    @Query("UPDATE chat_messages SET status = 'Canceled', updatedAt = :timestamp WHERE role = 'Assistant' AND status IN ('Pending', 'Streaming')")
+    suspend fun recoverInterruptedReplies(timestamp: Long)
+
     @Query("UPDATE chat_messages SET status = 'Canceled', updatedAt = :timestamp WHERE threadId = :threadId AND role = 'Assistant' AND status IN ('Pending', 'Streaming')")
     suspend fun cancelUnfinishedReplies(threadId: String, timestamp: Long)
 

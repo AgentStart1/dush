@@ -71,6 +71,9 @@ kotlin {
             implementation(libs.koog.http.ktor)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.room.paging)
+            api(libs.androidx.paging.common)
+            implementation(libs.androidx.paging.compose)
         }
         jvmTest {
             resources.srcDir("schemas")

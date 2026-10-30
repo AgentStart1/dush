@@ -11,8 +11,8 @@ data class ConnectionState(val items: List<ConnectionEntity> = emptyList(), val 
 
 /** Screen-owned state; credentials never enter saved UI state or metadata. */
 class ConnectionHost(private val repository: ConnectionRepository, private val runtime: InferenceRuntime,
-    id: String?, dispatcher: CoroutineDispatcher) {
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    id: String?, dispatcher: CoroutineDispatcher, parent: Job? = null) {
+    private val scope = CoroutineScope(SupervisorJob(parent) + dispatcher)
     private val mutable = MutableStateFlow(ConnectionState(draft = repository.draft()))
     val state = mutable.asStateFlow()
     private var operation: Job? = null
