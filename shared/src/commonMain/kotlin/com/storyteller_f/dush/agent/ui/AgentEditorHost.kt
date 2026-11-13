@@ -43,5 +43,6 @@ class AgentEditorHost(private val id: String?, private val agents: AgentReposito
         catch (_: Exception) { mutable.update { it.copy(error = "保存失败，请检查连接是否仍然存在。") } }
         finally { mutable.update { it.copy(saving = false) } }
     }
-    fun close() = scope.cancel()
+    /** Cancels the editor; join the returned job before closing its repositories. */
+    fun close(): Job = scope.coroutineContext.job.apply { cancel() }
 }

@@ -90,6 +90,8 @@ Appium 测试任务安装 debug，默认目标为 `com.storyteller_f.dush.debug`
 
 `ConnectionHost` 在应用注入的后台串行调度器上协调编辑器操作，作用域随页面释放。API 密钥只存临时状态，绝不使用 `rememberSaveable`。测试使用合成内容，不使用用户历史。
 
+`AgentEditorHost.close()` 发出取消请求并返回作用域 Job。独立拥有数据库的调用方须先 `close().join()`，等待连接观察任务退出后再关闭 Room；只请求取消可能使 SQLite 语句清理与数据库关闭竞争。组合内的编辑器仍归属 `WorkspaceHost`，由其挂起关闭过程等待子任务退出。生命周期回归通过受控的观察任务清理验证此边界。
+
 Schema v4 新增 `connections` 和 `agents.connectionId`。旧 `models` 元数据／表及 `modelId` 列仅为保留 schema 演进路径而存在，不参与文件操作或本地推理。迁移 3→4 清除本地关联，将中断回复标为 Canceled，同时保留历史、Agent、对话关联和气泡设置。版本 1–3 不变；schema v4 由 KSP 生成。删除连接、验证／保存 Agent 连接和默认选择使用 DAO 事务。凭据存储在 SQLite 之外：保存中断可能留下未使用的加密密钥，但不会发布未配置完成的连接。凭据写入失败时元数据不变。任何凭据写入前先验证必需凭据，因此被拒绝的清空操作保留原有密钥和元数据。
 
 `AndroidInferenceRuntime` 通过复制的公开 llmd AIDL 契约调用 LlmdAndroid。它以 AUTO_CREATE | IMPORTANT 绑定，检查 authorization、engineReady 和 activeModel，并限制 Binder 请求大小。授权由用户从编辑器发起。当前服务契约只有一个完成回调，没有远程取消 RPC；本地取消通过解绑和丢弃迟到结果实现，不声称 llmd 内推理已经停止。它绝不启动或切换 llmd 模型服务。

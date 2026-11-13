@@ -253,7 +253,7 @@ data: [DONE]
                 host.save().join()
                 assertNotNull(host.state.value.error)
                 assertNull(db.agentDao().defaultAgent())
-            } finally { host.close() }
+            } finally { host.close().join() }
         } } finally { Files.deleteIfExists(path) }
     }
 
